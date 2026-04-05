@@ -1,0 +1,2231 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0A1628">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Atlas Pro">
+<title>Atlas Pro</title>
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- ═══════════════════════════════════════════════════════
+     ⚙️  FIREBASE CONFIG — ضع قيمك من Firebase Console
+         Project Settings > Your Apps > Firebase SDK snippet
+     ═══════════════════════════════════════════════════════ -->
+<script type="module">
+import { initializeApp }                         from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+import { getFirestore, collection, doc, getDocs,
+         addDoc, updateDoc, deleteDoc, setDoc,
+         query, orderBy, onSnapshot, writeBatch,
+         enableIndexedDbPersistence }            from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult,
+         GoogleAuthProvider, onAuthStateChanged,
+         signOut }                               from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyDguGcnT3LwsuWaItIxpvBM8AfPjOkJgLk",
+  authDomain:        "atlas-pro-system.firebaseapp.com",
+  projectId:         "atlas-pro-system",
+  storageBucket:     "atlas-pro-system.firebasestorage.app",
+  messagingSenderId: "775053637704",
+  appId:             "1:775053637704:web:31df258d2e730c4f7d807d"
+};
+
+window.GDRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile";
+
+let app, db, auth;
+try {
+  app  = initializeApp(firebaseConfig);
+  db   = getFirestore(app);
+  auth = getAuth(app);
+  enableIndexedDbPersistence(db).catch(() => {});
+} catch(e) { console.warn('Firebase init skipped:', e.message); }
+
+window._fb = {
+  db, auth,
+  signInWithPopup, signInWithRedirect, getRedirectResult,
+  onAuthStateChanged, signOut, GoogleAuthProvider,
+  collection, doc, getDocs, addDoc, updateDoc, deleteDoc, setDoc,
+  query, orderBy, onSnapshot, writeBatch,
+  ready: !!db
+};
+
+// ── معالجة نتيجة Redirect بعد العودة من صفحة Google ──
+if(auth) {
+  getRedirectResult(auth).then(result => {
+    if(result) {
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken;
+      if(token) {
+        localStorage.setItem('ap_drive_token', token);
+        window._pendingRedirectToken = token;
+      }
+      // onAuthStateChanged سيلتقطه تلقائياً
+    }
+  }).catch(e => {
+    console.warn('Redirect result error:', e.code);
+  });
+}
+</script>
+
+<style>
+/* ═══════════════════════════════════════
+   ROOT VARIABLES
+═══════════════════════════════════════ */
+:root {
+  --bg:    #0A1628;
+  --bg2:   #0f1e38;
+  --bg3:   #162440;
+  --bg4:   #1c2e50;
+  --bg5:   #223460;
+  --border:  rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.14);
+  --text:  #f0f4ff;
+  --text2: #8a9fc0;
+  --text3: #4a5f80;
+  --accent:  #2d7dd2;
+  --accent2: #1a5fa0;
+  --accent-g: linear-gradient(135deg,#2d7dd2,#1a5fa0);
+  --green:   #1a8a5a;
+  --amber:   #c47a1a;
+  --red:     #c0392b;
+  --gold:    #d4a017;
+  --purple:  #7c4dbd;
+  --cyan:    #16a085;
+  --radius:  14px;
+  --radius-sm: 8px;
+  --font: 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  --nav-h: 64px;
+  --top-h: 58px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overflow:hidden;background:var(--bg);font-family:var(--font);color:var(--text);}
+::-webkit-scrollbar{width:3px;height:3px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+
+/* ── AUTH SCREEN ── */
+#auth-screen{
+  position:fixed;inset:0;z-index:1000;background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;
+}
+.auth-logo{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
+.auth-logo-icon{width:56px;height:56px;border-radius:16px;background:var(--accent-g);
+  display:flex;align-items:center;justify-content:center;}
+.auth-logo-icon svg{width:30px;height:30px;fill:white;}
+.auth-title{font-size:26px;font-weight:700;color:var(--text);}
+.auth-sub{font-size:13px;color:var(--text3);text-align:center;margin-bottom:36px;line-height:1.6;}
+.auth-btn{
+  width:260px;height:48px;border-radius:12px;border:none;cursor:pointer;
+  font-size:14px;font-family:var(--font);font-weight:600;
+  display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:12px;
+}
+.auth-btn.google{background:white;color:#333;}
+.auth-btn.google svg{width:20px;height:20px;}
+.auth-btn.skip{background:var(--bg3);color:var(--text2);border:1px solid var(--border2);}
+.auth-note{font-size:11px;color:var(--text3);margin-top:8px;text-align:center;max-width:240px;line-height:1.5;}
+
+/* ── SETUP BANNER ── */
+#setup-banner{
+  display:none;position:fixed;top:0;left:0;right:0;z-index:999;
+  background:#c0392b;padding:10px 16px;font-size:12px;color:white;
+  text-align:center;line-height:1.5;
+}
+#setup-banner a{color:#ffd;text-decoration:underline;}
+#setup-banner.show{display:block;}
+
+/* ── APP SHELL ── */
+#app{height:100dvh;display:none;flex-direction:column;overflow:hidden;}
+.screen{display:none;flex:1;flex-direction:column;overflow:hidden;}
+.screen.active{display:flex;}
+
+/* ── TOPBAR ── */
+.topbar{
+  height:var(--top-h);padding:0 14px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--bg);border-bottom:1px solid var(--border);
+  flex-shrink:0;gap:8px;
+}
+.topbar-left{display:flex;align-items:center;gap:10px;min-width:0;flex:1;}
+.logo-wrap{display:flex;align-items:center;gap:9px;}
+.logo-icon{width:32px;height:32px;border-radius:9px;background:var(--accent-g);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.logo-icon svg{width:17px;height:17px;fill:white;}
+.logo-text{font-size:16px;font-weight:700;color:var(--text);}
+.logo-sub{font-size:9px;color:var(--text3);}
+.back-btn{width:32px;height:32px;border-radius:var(--radius-sm);background:var(--bg3);
+  border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;}
+.back-btn svg{width:15px;height:15px;stroke:var(--text2);fill:none;stroke-width:2;}
+.topbar-title{font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.topbar-sub{font-size:10px;color:var(--text3);}
+.topbar-right{display:flex;align-items:center;gap:7px;flex-shrink:0;}
+.icon-btn{width:32px;height:32px;border-radius:var(--radius-sm);background:var(--bg3);
+  border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;}
+.icon-btn svg{width:15px;height:15px;stroke:var(--text2);fill:none;stroke-width:1.5;}
+.icon-btn:active,.back-btn:active{background:var(--bg4);}
+.add-btn{height:32px;padding:0 13px;border-radius:var(--radius-sm);background:var(--accent);
+  border:none;color:white;font-size:12px;font-family:var(--font);font-weight:600;
+  cursor:pointer;display:flex;align-items:center;gap:5px;flex-shrink:0;}
+.add-btn svg{width:13px;height:13px;stroke:white;fill:none;stroke-width:2;}
+.add-btn:active{background:var(--accent2);}
+
+/* ── OFFLINE BADGE ── */
+.offline-badge{
+  display:none;position:absolute;top:-4px;right:-4px;width:9px;height:9px;
+  border-radius:50%;background:#f39c12;border:2px solid var(--bg);
+}
+.offline-badge.show{display:block;}
+
+/* ── SYNC STATUS ── */
+.sync-bar{
+  display:none;padding:6px 14px;background:var(--bg2);border-bottom:1px solid var(--border);
+  font-size:11px;color:var(--text3);flex-shrink:0;align-items:center;gap:8px;
+}
+.sync-bar.show{display:flex;}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);
+  animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+/* ── SEARCH BAR ── */
+.search-wrap{padding:10px 14px;background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0;}
+.search-inner{display:flex;align-items:center;gap:8px;background:var(--bg3);
+  border:1px solid var(--border);border-radius:20px;padding:0 12px;height:34px;}
+.search-inner svg{width:13px;height:13px;stroke:var(--text3);fill:none;stroke-width:1.5;flex-shrink:0;}
+.search-inner input{flex:1;background:none;border:none;outline:none;font-size:13px;
+  color:var(--text);font-family:var(--font);}
+.search-inner input::placeholder{color:var(--text3);}
+
+/* ── BREADCRUMB ── */
+.breadcrumb{padding:8px 14px;display:flex;align-items:center;gap:5px;
+  border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto;white-space:nowrap;}
+.breadcrumb::-webkit-scrollbar{display:none;}
+.bc-item{font-size:11px;color:var(--text3);cursor:pointer;}
+.bc-item:hover{color:var(--text2);}
+.bc-sep{font-size:11px;color:var(--text3);}
+
+/* ── SCROLL BODY ── */
+.scroll-body{flex:1;overflow-y:auto;padding:14px;}
+
+/* ── STATS ROW ── */
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
+.stat-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;}
+.stat-n{font-size:22px;font-weight:700;color:var(--text);}
+.stat-l{font-size:10px;color:var(--text3);margin-top:1px;}
+
+/* ── SECTION LABEL ── */
+.sec-lbl{font-size:10px;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;
+  margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;}
+.sec-lbl-act{font-size:11px;color:var(--accent);cursor:pointer;text-transform:none;letter-spacing:0;}
+
+/* ── CATEGORY CARDS ── */
+.cat-grid{display:flex;flex-direction:column;gap:10px;margin-bottom:18px;}
+.cat-card{
+  background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);
+  padding:14px 16px;display:flex;align-items:center;gap:14px;cursor:pointer;
+  transition:border-color .2s,background .2s;position:relative;overflow:hidden;
+}
+.cat-card:active{background:var(--bg4);}
+.cat-card-icon{width:52px;height:52px;border-radius:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.cat-card-icon svg{width:32px;height:32px;}
+.cat-card-info{flex:1;min-width:0;}
+.cat-card-name{font-size:15px;font-weight:600;color:var(--text);}
+.cat-card-sub{font-size:11px;color:var(--text3);margin-top:2px;}
+.cat-card-count{font-size:11px;color:var(--text2);margin-top:3px;}
+.cat-card-arr{width:26px;height:26px;border-radius:7px;background:var(--bg4);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.cat-card-arr svg{width:13px;height:13px;stroke:var(--text3);fill:none;stroke-width:2;}
+/* category colours */
+.cat-card.trucks{border-color:rgba(45,125,210,.25);}
+.cat-card.trucks .cat-card-icon{background:rgba(45,125,210,.15);}
+.cat-card.equip{border-color:rgba(26,138,90,.25);}
+.cat-card.equip .cat-card-icon{background:rgba(26,138,90,.15);}
+.cat-card.gen{border-color:rgba(196,122,26,.25);}
+.cat-card.gen .cat-card-icon{background:rgba(196,122,26,.15);}
+
+/* ── CUSTOM CATEGORY (dynamic) ── */
+.cat-card.custom{border-color:rgba(124,77,189,.25);}
+.cat-card.custom .cat-card-icon{background:rgba(124,77,189,.15);}
+
+/* ── ADD CATEGORY CARD ── */
+.cat-add-card{
+  border:1px dashed var(--border2);border-radius:var(--radius);padding:14px 16px;
+  display:flex;align-items:center;gap:12px;cursor:pointer;background:transparent;
+}
+.cat-add-card:active{background:var(--bg3);}
+.cat-add-card svg{width:22px;height:22px;stroke:var(--text3);fill:none;stroke-width:1.5;}
+.cat-add-card span{font-size:13px;color:var(--text3);}
+
+/* ── RECENT LIST ── */
+.recent-list{display:flex;flex-direction:column;gap:7px;}
+.recent-item{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:9px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;}
+.recent-item:active{background:var(--bg4);}
+.recent-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.recent-info{flex:1;min-width:0;}
+.recent-name{font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.recent-meta{font-size:10px;color:var(--text3);margin-top:1px;}
+.recent-arr svg{width:11px;height:11px;stroke:var(--text3);fill:none;stroke-width:2;}
+
+/* ── BRAND LIST ── */
+.brand-list{display:flex;flex-direction:column;gap:8px;}
+.brand-item{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);
+  padding:11px 13px;display:flex;align-items:center;gap:11px;cursor:pointer;transition:border-color .2s;}
+.brand-item:active{background:var(--bg4);}
+.brand-badge{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.brand-badge svg{width:26px;height:26px;}
+.brand-info{flex:1;min-width:0;}
+.brand-name{font-size:14px;font-weight:600;color:var(--text);}
+.brand-count{font-size:11px;color:var(--text3);margin-top:2px;}
+.brand-actions{display:flex;gap:5px;}
+.brand-edit-btn,.brand-del-btn{width:27px;height:27px;border-radius:7px;background:var(--bg4);
+  border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.brand-edit-btn svg{width:12px;height:12px;stroke:var(--text2);fill:none;stroke-width:1.5;}
+.brand-del-btn svg{width:12px;height:12px;stroke:#e74c3c;fill:none;stroke-width:1.5;}
+.brand-arr{width:22px;height:22px;border-radius:6px;background:var(--bg4);
+  display:flex;align-items:center;justify-content:center;}
+.brand-arr svg{width:11px;height:11px;stroke:var(--text3);fill:none;stroke-width:2;}
+
+/* ── FILTER CHIPS ── */
+.chips-scroll{overflow-x:auto;white-space:nowrap;padding:8px 14px;
+  border-bottom:1px solid var(--border);flex-shrink:0;}
+.chips-scroll::-webkit-scrollbar{display:none;}
+.chip{display:inline-block;padding:5px 12px;border-radius:16px;border:1px solid var(--border2);
+  font-size:11px;color:var(--text2);cursor:pointer;margin-left:5px;font-family:var(--font);}
+.chip:last-child{margin-left:0;}
+.chip.active{background:var(--accent);border-color:var(--accent);color:white;}
+
+/* ── DIAGRAM GRID ── */
+.diag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+.diag-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);
+  overflow:hidden;cursor:pointer;transition:border-color .2s;}
+.diag-card:active{border-color:var(--accent);}
+.diag-img{height:88px;display:flex;align-items:center;justify-content:center;
+  position:relative;overflow:hidden;background:var(--bg2);}
+.diag-img img{width:100%;height:100%;object-fit:cover;}
+.diag-img-placeholder{display:flex;align-items:center;justify-content:center;width:100%;height:100%;}
+.diag-img-placeholder svg{width:34px;height:34px;stroke:var(--text3);fill:none;stroke-width:1.2;opacity:.4;}
+.diag-tag{position:absolute;top:5px;right:5px;font-size:9px;padding:2px 6px;border-radius:5px;font-weight:500;}
+.diag-fav{position:absolute;top:5px;left:5px;width:21px;height:21px;border-radius:5px;
+  background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;}
+.diag-fav svg{width:11px;height:11px;}
+.diag-fav.on svg{fill:var(--gold);stroke:var(--gold);}
+.diag-fav:not(.on) svg{fill:none;stroke:rgba(255,255,255,.6);stroke-width:1.5;}
+.diag-body{padding:8px 10px;}
+.diag-title{font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.diag-meta{font-size:10px;color:var(--text3);margin-top:2px;}
+.diag-add-card{background:var(--bg3);border:1px dashed var(--border2);border-radius:var(--radius);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:128px;cursor:pointer;}
+.diag-add-card svg{width:22px;height:22px;stroke:var(--text3);fill:none;stroke-width:1.5;}
+.diag-add-card span{font-size:11px;color:var(--text3);}
+
+/* ── BOTTOM NAV ── */
+.bottom-nav{height:var(--nav-h);background:var(--bg);border-top:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-around;flex-shrink:0;
+  padding-bottom:env(safe-area-inset-bottom);}
+.nav-item{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;
+  padding:8px 12px;border-radius:var(--radius-sm);transition:background .15s;min-width:56px;}
+.nav-item svg{width:21px;height:21px;stroke:var(--text3);fill:none;stroke-width:1.5;transition:stroke .15s;}
+.nav-item span{font-size:9px;color:var(--text3);transition:color .15s;}
+.nav-item.active svg{stroke:var(--accent);}
+.nav-item.active span{color:var(--accent);}
+
+/* ── IMAGE VIEWER ── */
+#viewer-screen{background:#000;}
+.viewer-top{position:absolute;top:0;left:0;right:0;z-index:10;padding:12px 14px;
+  padding-top:max(12px,env(safe-area-inset-top));display:flex;align-items:center;
+  justify-content:space-between;background:linear-gradient(to bottom,rgba(0,0,0,.75),transparent);}
+.viewer-back{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.12);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.viewer-back svg{width:17px;height:17px;stroke:white;fill:none;stroke-width:2;}
+.viewer-info{text-align:center;flex:1;}
+.viewer-title{font-size:13px;font-weight:500;color:white;}
+.viewer-brand{font-size:10px;color:rgba(255,255,255,.6);margin-top:1px;}
+.viewer-counter{font-size:11px;color:rgba(255,255,255,.7);background:rgba(255,255,255,.12);
+  padding:4px 10px;border-radius:12px;}
+.viewer-img-container{flex:1;display:flex;align-items:center;justify-content:center;
+  position:relative;overflow:hidden;touch-action:none;}
+.viewer-img-container img{max-width:100%;max-height:100%;object-fit:contain;
+  user-select:none;transform-origin:center;transition:transform .1s;}
+.no-img{display:flex;flex-direction:column;align-items:center;gap:10px;}
+.no-img svg{width:60px;height:60px;stroke:rgba(255,255,255,.2);fill:none;stroke-width:1;}
+.no-img span{font-size:12px;color:rgba(255,255,255,.3);}
+.viewer-dots{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);
+  display:flex;gap:5px;z-index:5;}
+.v-dot{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.3);transition:all .2s;}
+.v-dot.active{width:16px;border-radius:3px;background:white;}
+.viewer-toolbar{position:absolute;bottom:0;left:0;right:0;
+  padding:10px 0 max(10px,env(safe-area-inset-bottom));
+  background:linear-gradient(to top,rgba(0,0,0,.8),transparent);
+  display:flex;justify-content:space-around;align-items:center;z-index:10;}
+.vt-btn{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:4px 8px;}
+.vt-btn svg{width:21px;height:21px;stroke:rgba(255,255,255,.7);fill:none;stroke-width:1.5;}
+.vt-btn span{font-size:9px;color:rgba(255,255,255,.5);}
+.vt-btn.on svg{stroke:var(--gold);}
+
+/* ── NOTES PANEL ── */
+.notes-panel{
+  position:absolute;bottom:0;left:0;right:0;background:var(--bg2);
+  border-top:1px solid var(--border2);border-radius:20px 20px 0 0;
+  padding:16px;z-index:20;transform:translateY(100%);transition:transform .3s;
+}
+.notes-panel.show{transform:translateY(0);}
+.notes-panel-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px;}
+.notes-panel textarea{
+  width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;
+  color:var(--text);font-family:var(--font);font-size:13px;padding:10px;
+  resize:none;outline:none;min-height:90px;
+}
+.notes-save-btn{
+  margin-top:10px;width:100%;height:40px;border-radius:10px;background:var(--accent);
+  border:none;color:white;font-size:13px;font-family:var(--font);font-weight:600;cursor:pointer;
+}
+
+/* ── CUSTOM FIELDS PANEL (viewer) ── */
+.fields-panel{
+  position:absolute;bottom:68px;left:0;right:0;background:var(--bg2);
+  border-top:1px solid var(--border2);border-radius:16px 16px 0 0;
+  padding:14px;z-index:15;max-height:55vh;overflow-y:auto;
+  transform:translateY(100%);transition:transform .3s;
+}
+.fields-panel.show{transform:translateY(0);}
+.fields-panel-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;}
+.field-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.field-label{font-size:11px;color:var(--text3);width:90px;flex-shrink:0;}
+.field-value{font-size:12px;color:var(--text);flex:1;}
+
+/* ── MODALS ── */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;
+  display:none;align-items:flex-end;justify-content:center;
+}
+.modal-overlay.show{display:flex;}
+.modal{
+  background:var(--bg2);border:1px solid var(--border2);border-radius:20px 20px 0 0;
+  width:100%;max-height:90vh;overflow-y:auto;padding:20px 16px;
+  padding-bottom:max(20px,env(safe-area-inset-bottom));
+}
+.modal-handle{width:36px;height:4px;border-radius:2px;background:var(--border2);margin:0 auto 16px;}
+.modal-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:4px;}
+.modal-sub{font-size:12px;color:var(--text3);margin-bottom:18px;}
+.modal-label{font-size:11px;color:var(--text3);margin-bottom:5px;margin-top:12px;display:block;}
+.modal-input{
+  width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;
+  color:var(--text);font-family:var(--font);font-size:14px;padding:10px 12px;outline:none;
+}
+.modal-input:focus{border-color:var(--accent);}
+.modal-select{
+  width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;
+  color:var(--text);font-family:var(--font);font-size:14px;padding:10px 12px;outline:none;
+  appearance:none;
+}
+textarea.modal-input{resize:none;min-height:70px;}
+.modal-row{display:flex;gap:8px;}
+.modal-row .modal-input{flex:1;}
+.modal-save-btn{
+  margin-top:18px;width:100%;height:44px;border-radius:12px;background:var(--accent);
+  border:none;color:white;font-size:14px;font-family:var(--font);font-weight:600;cursor:pointer;
+}
+.modal-save-btn:disabled{opacity:.5;}
+.modal-cancel-btn{
+  margin-top:8px;width:100%;height:40px;border-radius:12px;background:transparent;
+  border:1px solid var(--border2);color:var(--text2);font-size:13px;font-family:var(--font);cursor:pointer;
+}
+
+/* ── COLOR PICKER ── */
+.color-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+.color-dot{width:28px;height:28px;border-radius:50%;cursor:pointer;transition:transform .15s;
+  border:2px solid transparent;}
+.color-dot.selected{border-color:white;transform:scale(1.2);}
+
+/* ── ICON PICKER ── */
+.icon-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+.icon-opt{width:40px;height:40px;border-radius:10px;background:var(--bg3);border:1px solid var(--border2);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;}
+.icon-opt.selected{border-color:var(--accent);background:rgba(45,125,210,.15);}
+
+/* ── CUSTOM FIELDS EDITOR ── */
+.field-def-list{display:flex;flex-direction:column;gap:8px;margin-top:8px;}
+.field-def-item{display:flex;align-items:center;gap:8px;background:var(--bg3);
+  border:1px solid var(--border);border-radius:10px;padding:8px 10px;}
+.field-def-name{flex:1;font-size:13px;color:var(--text);}
+.field-def-type{font-size:10px;color:var(--text3);}
+.field-def-del{width:24px;height:24px;border-radius:6px;background:rgba(192,57,43,.15);
+  border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.field-def-del svg{width:11px;height:11px;stroke:#e74c3c;fill:none;stroke-width:1.5;}
+.field-def-drag{cursor:grab;color:var(--text3);font-size:14px;padding:0 4px;}
+.add-field-row{display:flex;gap:6px;margin-top:8px;}
+.add-field-row input,.add-field-row select{
+  flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;
+  color:var(--text);font-family:var(--font);font-size:12px;padding:7px 10px;outline:none;
+}
+.add-field-btn{padding:0 12px;height:34px;background:var(--accent);border:none;border-radius:8px;
+  color:white;font-size:12px;font-family:var(--font);cursor:pointer;white-space:nowrap;}
+
+/* ── UPLOAD AREA ── */
+.upload-area{
+  border:2px dashed var(--border2);border-radius:12px;padding:16px;text-align:center;
+  cursor:pointer;transition:border-color .2s;margin-top:8px;
+}
+.upload-area.has-file{border-color:var(--accent);}
+.upload-area svg{width:28px;height:28px;stroke:var(--text3);fill:none;stroke-width:1.5;margin-bottom:6px;}
+.upload-area span{display:block;font-size:12px;color:var(--text3);}
+.upload-preview{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+.upload-thumb-wrap{position:relative;width:70px;height:70px;}
+.upload-thumb{width:70px;height:70px;border-radius:8px;object-fit:cover;}
+.upload-thumb-del{
+  position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;
+  background:#e74c3c;display:flex;align-items:center;justify-content:center;cursor:pointer;
+}
+.upload-thumb-del svg{width:9px;height:9px;stroke:white;fill:none;stroke-width:2;}
+.drive-pill{
+  display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;
+  background:var(--bg3);border:1px solid var(--border2);font-size:11px;color:var(--text3);margin-top:8px;
+}
+.drive-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--text3);}
+.drive-pill .dot.ok{background:var(--green);}
+
+/* ── MANAGEMENT SCREEN ── */
+.mgmt-section{margin-bottom:20px;}
+.mgmt-sec-title{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px;
+  display:flex;align-items:center;justify-content:space-between;}
+.mgmt-item{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:11px 12px;display:flex;align-items:center;gap:10px;margin-bottom:7px;}
+.mgmt-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.mgmt-name{font-size:13px;font-weight:500;color:var(--text);}
+.mgmt-sub{font-size:10px;color:var(--text3);margin-top:1px;}
+.mgmt-btns{display:flex;gap:5px;}
+.mgmt-btn{width:27px;height:27px;border-radius:7px;background:var(--bg4);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.mgmt-btn svg{width:12px;height:12px;fill:none;stroke-width:1.5;}
+.mgmt-btn.edit svg{stroke:var(--text2);}
+.mgmt-btn.del svg{stroke:#e74c3c;}
+
+/* drive connect card */
+.drive-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);
+  padding:14px;margin-bottom:14px;}
+.drive-card-header{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.drive-card-icon{width:36px;height:36px;border-radius:10px;background:rgba(45,125,210,.15);
+  display:flex;align-items:center;justify-content:center;}
+.drive-card-icon svg{width:20px;height:20px;fill:none;stroke:var(--accent);stroke-width:1.5;}
+.drive-card-title{font-size:14px;font-weight:600;color:var(--text);}
+.drive-card-sub{font-size:11px;color:var(--text3);}
+.drive-status{font-size:11px;color:var(--text3);display:flex;align-items:center;gap:5px;margin-bottom:10px;}
+.drive-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);}
+.drive-dot.connected{background:var(--green);}
+.drive-connect-btn{width:100%;height:38px;border-radius:10px;border:1px solid var(--border2);
+  background:transparent;color:var(--text2);font-size:13px;font-family:var(--font);cursor:pointer;}
+.drive-connect-btn.connected{background:rgba(26,138,90,.15);border-color:var(--green);color:var(--green);}
+
+/* types manager */
+.type-chip-wrap{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.type-chip{display:flex;align-items:center;gap:4px;padding:5px 10px;border-radius:20px;
+  border:1px solid var(--border2);background:var(--bg3);font-size:11px;color:var(--text2);}
+.type-chip-del{width:14px;height:14px;border-radius:50%;background:var(--bg4);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.type-chip-del svg{width:7px;height:7px;stroke:var(--text3);fill:none;stroke-width:2;}
+.type-add-row{display:flex;gap:6px;margin-top:8px;}
+.type-add-input{flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;
+  color:var(--text);font-family:var(--font);font-size:12px;padding:7px 10px;outline:none;}
+.type-add-btn{padding:0 12px;height:34px;background:var(--accent);border:none;border-radius:8px;
+  color:white;font-size:12px;font-family:var(--font);cursor:pointer;}
+
+/* ── CONFIRM OVERLAY ── */
+.confirm-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:300;
+  display:none;align-items:center;justify-content:center;padding:20px;
+}
+.confirm-overlay.show{display:flex;}
+.confirm-box{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;
+  padding:20px;width:100%;max-width:300px;}
+.confirm-title{font-size:15px;font-weight:600;color:var(--text);margin-bottom:8px;}
+.confirm-msg{font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.5;white-space:pre-line;}
+.confirm-btns{display:flex;gap:8px;}
+.confirm-btns button{flex:1;height:40px;border-radius:10px;border:none;font-size:13px;
+  font-family:var(--font);font-weight:600;cursor:pointer;}
+.confirm-btns .ok{background:var(--red);color:white;}
+.confirm-btns .ok.accent{background:var(--accent);}
+.confirm-btns .cancel{background:var(--bg3);color:var(--text2);}
+
+/* ── TOAST ── */
+#toast{
+  position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--bg4);border:1px solid var(--border2);border-radius:10px;
+  padding:9px 16px;font-size:13px;color:var(--text);white-space:nowrap;
+  opacity:0;transition:opacity .3s,transform .3s;z-index:400;pointer-events:none;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ── LOADING ── */
+.loading{display:flex;align-items:center;justify-content:center;padding:40px;}
+.spinner{width:28px;height:28px;border:3px solid var(--border2);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── EMPTY STATE ── */
+.empty-state{display:flex;flex-direction:column;align-items:center;padding:40px 20px;gap:10px;}
+.empty-state svg{width:48px;height:48px;stroke:var(--text3);fill:none;stroke-width:1;opacity:.5;}
+.empty-state p{font-size:13px;color:var(--text3);text-align:center;line-height:1.5;}
+
+/* ── SEARCH SCREEN ── */
+#search-results .diag-grid{margin-top:10px;}
+
+/* ── SETTINGS SCREEN ── */
+.settings-group{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);
+  margin-bottom:14px;overflow:hidden;}
+.settings-item{display:flex;align-items:center;gap:12px;padding:13px 14px;cursor:pointer;
+  border-bottom:1px solid var(--border);}
+.settings-item:last-child{border-bottom:none;}
+.settings-item:active{background:var(--bg4);}
+.settings-item-icon{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.settings-item-icon svg{width:16px;height:16px;fill:none;stroke-width:1.5;}
+.settings-item-text{flex:1;}
+.settings-item-label{font-size:13px;font-weight:500;color:var(--text);}
+.settings-item-sub{font-size:11px;color:var(--text3);margin-top:1px;}
+.settings-item-arr svg{width:12px;height:12px;stroke:var(--text3);fill:none;stroke-width:2;}
+/* toggle switch */
+.toggle{width:42px;height:24px;border-radius:12px;background:var(--bg4);position:relative;cursor:pointer;transition:background .3s;flex-shrink:0;}
+.toggle.on{background:var(--accent);}
+.toggle::after{content:'';position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:50%;background:white;transition:transform .3s;}
+.toggle.on::after{transform:translateX(-18px);}
+
+/* ── REORDER handle ── */
+.drag-handle{cursor:grab;color:var(--text3);font-size:14px;padding:0 4px;user-select:none;}
+</style>
+</head>
+<body>
+
+<!-- ═══ AUTH SCREEN ═══ -->
+<div id="auth-screen">
+  <div class="auth-logo">
+    <div class="auth-logo-icon">
+      <svg viewBox="0 0 40 40"><rect x="2" y="2" width="16" height="16" rx="3"/><rect x="22" y="2" width="16" height="16" rx="3"/><rect x="2" y="22" width="16" height="16" rx="3"/><rect x="22" y="22" width="16" height="16" rx="3"/></svg>
+    </div>
+    <div>
+      <div class="auth-title">Atlas Pro</div>
+      <div style="font-size:11px;color:var(--text3)">مكتبة المخططات الفنية</div>
+    </div>
+  </div>
+  <div class="auth-sub" style="margin-top:12px;">سجّل الدخول لمزامنة بياناتك<br>على جميع أجهزتك عبر السحابة</div>
+  <button class="auth-btn google" onclick="signInWithGoogle()">
+    <svg viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+    تسجيل الدخول بـ Google
+  </button>
+  <button class="auth-btn skip" onclick="skipAuth()">
+    <svg viewBox="0 0 20 20" width="18" height="18"><circle cx="10" cy="10" r="8" stroke="currentColor" fill="none" stroke-width="1.5"/><line x1="10" y1="6" x2="10" y2="10" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="13" r=".8" fill="currentColor"/></svg>
+    استمر بدون تسجيل
+  </button>
+  <div class="auth-note">بدون تسجيل، البيانات تُحفظ محلياً فقط ولن تُزامن</div>
+</div>
+
+<!-- ═══ SETUP BANNER ═══ -->
+<div id="setup-banner">
+  ⚠️ Firebase غير مضبوط — البيانات محلية فقط.
+  <a href="https://console.firebase.google.com" target="_blank">اضغط هنا لإعداد Firebase</a>
+</div>
+
+<!-- ═══ APP ═══ -->
+<div id="app">
+
+  <!-- ══ HOME SCREEN ══ -->
+  <div id="home-screen" class="screen active">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="logo-wrap">
+          <div class="logo-icon"><svg viewBox="0 0 40 40" fill="white"><rect x="2" y="2" width="16" height="16" rx="3"/><rect x="22" y="2" width="16" height="16" rx="3"/><rect x="2" y="22" width="16" height="16" rx="3"/><rect x="22" y="22" width="16" height="16" rx="3"/></svg></div>
+          <div><div class="logo-text">Atlas Pro</div><div class="logo-sub">مكتبة المخططات</div></div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="icon-btn" onclick="switchTab('search')" title="بحث">
+          <svg viewBox="0 0 22 22"><circle cx="9" cy="9" r="6"/><line x1="13.5" y1="13.5" x2="19" y2="19"/></svg>
+        </div>
+        <div class="icon-btn" id="sync-btn" onclick="manualSync()" title="مزامنة" style="position:relative">
+          <svg viewBox="0 0 22 22"><path d="M20 8.5A9 9 0 0 0 3.5 14M2 15.5A9 9 0 0 0 18.5 10"/><polyline points="20,4 20,9 15,9"/><polyline points="2,20 2,15 7,15"/></svg>
+          <div class="offline-badge" id="offline-badge"></div>
+        </div>
+        <div class="icon-btn" onclick="switchTab('settings')" title="الإعدادات">
+          <svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="3"/><path d="M11 2v2M11 18v2M4.22 4.22l1.42 1.42M16.36 16.36l1.42 1.42M2 11h2M18 11h2M4.22 17.78l1.42-1.42M16.36 5.64l1.42-1.42"/></svg>
+        </div>
+      </div>
+    </div>
+    <div class="sync-bar" id="sync-bar"><div class="sync-dot"></div><span id="sync-msg">جاري المزامنة...</span></div>
+    <div class="scroll-body">
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-n" id="stat-total">0</div><div class="stat-l">مخطط</div></div>
+        <div class="stat-card"><div class="stat-n" id="stat-brands">0</div><div class="stat-l">ماركة</div></div>
+        <div class="stat-card"><div class="stat-n" id="stat-favs">0</div><div class="stat-l">مفضلة</div></div>
+      </div>
+      <div class="sec-lbl">
+        <span>الأقسام</span>
+        <span class="sec-lbl-act" onclick="showAddCategory()">+ قسم جديد</span>
+      </div>
+      <div class="cat-grid" id="cat-grid"></div>
+      <div class="sec-lbl" style="margin-top:4px">
+        <span>آخر المضافة</span>
+        <span class="sec-lbl-act" onclick="switchTab('search')">عرض الكل</span>
+      </div>
+      <div class="recent-list" id="recent-list"></div>
+    </div>
+    <div class="bottom-nav" id="home-nav"></div>
+  </div>
+
+  <!-- ══ BRANDS SCREEN ══ -->
+  <div id="brands-screen" class="screen">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="back-btn" onclick="goBack()"><svg viewBox="0 0 16 16"><path d="M10 3L6 8l4 5"/></svg></div>
+        <div><div class="topbar-title" id="brands-title"></div><div class="topbar-sub" id="brands-sub"></div></div>
+      </div>
+      <div class="topbar-right">
+        <div class="add-btn" onclick="showAddBrand()">
+          <svg viewBox="0 0 14 14"><line x1="7" y1="2" x2="7" y2="12"/><line x1="2" y1="7" x2="12" y2="7"/></svg>ماركة
+        </div>
+      </div>
+    </div>
+    <div class="scroll-body"><div class="brand-list" id="brand-list"></div></div>
+    <div class="bottom-nav" id="brands-nav"></div>
+  </div>
+
+  <!-- ══ DIAGRAMS SCREEN ══ -->
+  <div id="diagrams-screen" class="screen">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="back-btn" onclick="goBack()"><svg viewBox="0 0 16 16"><path d="M10 3L6 8l4 5"/></svg></div>
+        <div><div class="topbar-title" id="diagrams-title"></div><div class="topbar-sub" id="diagrams-sub"></div></div>
+      </div>
+      <div class="topbar-right">
+        <div class="add-btn" onclick="showAddDiagram()">
+          <svg viewBox="0 0 14 14"><line x1="7" y1="2" x2="7" y2="12"/><line x1="2" y1="7" x2="12" y2="7"/></svg>مخطط
+        </div>
+      </div>
+    </div>
+    <div class="breadcrumb" id="diagrams-breadcrumb"></div>
+    <div class="chips-scroll" id="filter-chips"></div>
+    <div class="scroll-body">
+      <div class="diag-grid" id="diag-grid"></div>
+    </div>
+    <div class="bottom-nav" id="diagrams-nav"></div>
+  </div>
+
+  <!-- ══ VIEWER SCREEN ══ -->
+  <div id="viewer-screen" class="screen" style="position:relative">
+    <div class="viewer-top">
+      <div class="viewer-back" onclick="goBack()"><svg viewBox="0 0 18 18"><path d="M11 4L7 9l4 5"/></svg></div>
+      <div class="viewer-info">
+        <div class="viewer-title" id="viewer-title"></div>
+        <div class="viewer-brand" id="viewer-brand"></div>
+      </div>
+      <div class="viewer-counter" id="viewer-counter"></div>
+    </div>
+    <div class="viewer-img-container" id="viewer-img-container">
+      <div class="no-img"><svg viewBox="0 0 60 60"><rect x="5" y="10" width="50" height="40" rx="4"/><circle cx="22" cy="26" r="6"/><path d="M5 38l14-10 10 8 10-7 16 10"/></svg><span>لا توجد صورة</span></div>
+    </div>
+    <div class="viewer-dots" id="viewer-dots"></div>
+    <!-- Fields Panel -->
+    <div class="fields-panel" id="fields-panel">
+      <div class="fields-panel-title">تفاصيل المخطط</div>
+      <div id="fields-panel-content"></div>
+    </div>
+    <!-- Notes Panel -->
+    <div class="notes-panel" id="notes-panel">
+      <div class="notes-panel-title">الملاحظات</div>
+      <textarea id="notes-textarea" placeholder="اكتب ملاحظاتك هنا..."></textarea>
+      <button class="notes-save-btn" onclick="saveNotes()">حفظ</button>
+    </div>
+    <div class="viewer-toolbar">
+      <div class="vt-btn" onclick="zoomIn()"><svg viewBox="0 0 22 22"><circle cx="9" cy="9" r="6"/><line x1="13.5" y1="13.5" x2="19" y2="19"/><line x1="6" y1="9" x2="12" y2="9"/><line x1="9" y1="6" x2="9" y2="12"/></svg><span>تكبير</span></div>
+      <div class="vt-btn" onclick="zoomOut()"><svg viewBox="0 0 22 22"><circle cx="9" cy="9" r="6"/><line x1="13.5" y1="13.5" x2="19" y2="19"/><line x1="6" y1="9" x2="12" y2="9"/></svg><span>تصغير</span></div>
+      <div class="vt-btn" id="fav-btn" onclick="toggleViewerFav()"><svg viewBox="0 0 22 22"><path d="M11 4l2.5 5.5L19 10.5l-4 4 1 5.5L11 17l-5 3 1-5.5-4-4 5.5-1z"/></svg><span>مفضلة</span></div>
+      <div class="vt-btn" onclick="toggleFieldsPanel()"><svg viewBox="0 0 22 22"><path d="M14 3H5a2 2 0 0 0-2 2v14l4-4h11a2 2 0 0 0 2-2V7"/><line x1="9" y1="9" x2="13" y2="9"/><line x1="9" y1="13" x2="11" y2="13"/></svg><span>تفاصيل</span></div>
+      <div class="vt-btn" onclick="shareImage()"><svg viewBox="0 0 22 22"><path d="M4 12v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/><polyline points="15,7 11,3 7,7"/><line x1="11" y1="3" x2="11" y2="14"/></svg><span>مشاركة</span></div>
+      <div class="vt-btn" onclick="editCurrentDiagram()"><svg viewBox="0 0 22 22"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg><span>تعديل</span></div>
+      <div class="vt-btn" onclick="deleteDiagram()"><svg viewBox="0 0 22 22"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H4L3 6"/><path d="M8 6V4h6v2"/></svg><span>حذف</span></div>
+    </div>
+  </div>
+
+  <!-- ══ SEARCH SCREEN ══ -->
+  <div id="search-screen" class="screen">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="logo-icon"><svg viewBox="0 0 40 40" fill="white"><rect x="2" y="2" width="16" height="16" rx="3"/><rect x="22" y="2" width="16" height="16" rx="3"/><rect x="2" y="22" width="16" height="16" rx="3"/><rect x="22" y="22" width="16" height="16" rx="3"/></svg></div>
+        <div class="topbar-title">بحث</div>
+      </div>
+    </div>
+    <div class="search-wrap">
+      <div class="search-inner">
+        <svg viewBox="0 0 14 14"><circle cx="6" cy="6" r="4"/><line x1="9.5" y1="9.5" x2="13" y2="13"/></svg>
+        <input id="search-input" placeholder="ابحث بالاسم، الماركة، النوع، الموديل..." oninput="doSearch(this.value)" autocomplete="off">
+      </div>
+    </div>
+    <div class="scroll-body">
+      <div id="search-results"><div class="empty-state"><svg viewBox="0 0 48 48"><circle cx="20" cy="20" r="14"/><line x1="31" y1="31" x2="43" y2="43"/></svg><p>اكتب للبحث في مكتبة المخططات</p></div></div>
+    </div>
+    <div class="bottom-nav" id="search-nav"></div>
+  </div>
+
+  <!-- ══ FAVORITES SCREEN ══ -->
+  <div id="favs-screen" class="screen">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="logo-icon"><svg viewBox="0 0 40 40" fill="white"><rect x="2" y="2" width="16" height="16" rx="3"/><rect x="22" y="2" width="16" height="16" rx="3"/><rect x="2" y="22" width="16" height="16" rx="3"/><rect x="22" y="22" width="16" height="16" rx="3"/></svg></div>
+        <div class="topbar-title">المفضلة</div>
+      </div>
+    </div>
+    <div class="scroll-body"><div class="diag-grid" id="favs-grid"></div></div>
+    <div class="bottom-nav" id="favs-nav"></div>
+  </div>
+
+  <!-- ══ SETTINGS SCREEN ══ -->
+  <div id="settings-screen" class="screen">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="logo-icon"><svg viewBox="0 0 40 40" fill="white"><rect x="2" y="2" width="16" height="16" rx="3"/><rect x="22" y="2" width="16" height="16" rx="3"/><rect x="2" y="22" width="16" height="16" rx="3"/><rect x="22" y="22" width="16" height="16" rx="3"/></svg></div>
+        <div class="topbar-title">الإعدادات والإدارة</div>
+      </div>
+    </div>
+    <div class="scroll-body" id="settings-body"></div>
+    <div class="bottom-nav" id="settings-nav"></div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- ═══ MODALS ═══ -->
+
+<!-- Category Modal -->
+<div class="modal-overlay" id="cat-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="cat-modal-title">قسم جديد</div>
+    <label class="modal-label">اسم القسم *</label>
+    <input class="modal-input" id="cat-name-input" placeholder="مثال: رافعات، قوارب...">
+    <label class="modal-label">اختر أيقونة</label>
+    <div class="icon-row" id="cat-icon-row"></div>
+    <label class="modal-label">اللون</label>
+    <div class="color-row" id="cat-color-row"></div>
+    <label class="modal-label">الخانات المخصصة لهذا القسم</label>
+    <div class="field-def-list" id="cat-fields-list"></div>
+    <div class="add-field-row">
+      <input class="modal-input" id="new-field-name" placeholder="اسم الخانة" style="font-size:12px;padding:7px 10px;">
+      <select id="new-field-type" style="width:90px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:var(--font);font-size:12px;padding:7px 6px;outline:none;">
+        <option value="text">نص</option>
+        <option value="number">رقم</option>
+        <option value="date">تاريخ</option>
+        <option value="select">قائمة</option>
+      </select>
+      <button class="add-field-btn" onclick="addFieldDef()">+ أضف</button>
+    </div>
+    <button class="modal-save-btn" onclick="saveCategory()">حفظ القسم</button>
+    <button class="modal-cancel-btn" onclick="closeCatModal()">إلغاء</button>
+  </div>
+</div>
+
+<!-- Brand Modal -->
+<div class="modal-overlay" id="brand-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="brand-modal-title">إضافة ماركة</div>
+    <label class="modal-label">اسم الماركة *</label>
+    <input class="modal-input" id="brand-name-input" placeholder="مثال: Volvo, Caterpillar...">
+    <label class="modal-label">الاختصار (يظهر على الشارة)</label>
+    <input class="modal-input" id="brand-abbr-input" placeholder="مثال: VOL" style="margin-top:4px;text-transform:uppercase;" maxlength="4">
+    <label class="modal-label">القسم</label>
+    <select class="modal-select" id="brand-cat-select"></select>
+    <label class="modal-label">اللون</label>
+    <div class="color-row" id="brand-color-row"></div>
+    <button class="modal-save-btn" onclick="saveBrand()">حفظ الماركة</button>
+    <button class="modal-cancel-btn" onclick="closeBrandModal()">إلغاء</button>
+  </div>
+</div>
+
+<!-- Diagram Modal -->
+<div class="modal-overlay" id="diag-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="diag-modal-title">مخطط جديد</div>
+    <div class="modal-sub" id="diag-modal-sub"></div>
+    <label class="modal-label">اسم المخطط *</label>
+    <input class="modal-input" id="diag-name-input" placeholder="مثال: مخطط ECU الرئيسي">
+    <div class="modal-row" style="margin-top:8px;">
+      <div style="flex:1">
+        <label class="modal-label" style="margin-top:0">الموديل</label>
+        <input class="modal-input" id="diag-model-input" placeholder="مثال: FH16">
+      </div>
+      <div style="flex:1">
+        <label class="modal-label" style="margin-top:0">النوع</label>
+        <select class="modal-select" id="diag-type-select"></select>
+      </div>
+    </div>
+    <!-- Dynamic custom fields -->
+    <div id="diag-custom-fields"></div>
+    <label class="modal-label">الملاحظات</label>
+    <textarea class="modal-input" id="diag-notes-input" placeholder="أي ملاحظات إضافية..."></textarea>
+    <label class="modal-label">الصور</label>
+    <div class="upload-area" id="upload-area" onclick="triggerUpload()">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M3 15l5-5 4 4 3-3 6 6"/></svg>
+      <span id="upload-span">اضغط لإضافة صور</span>
+    </div>
+    <div class="upload-preview" id="upload-preview"></div>
+    <div style="margin-top:8px">
+      <div class="drive-pill">
+        <div class="dot" id="diag-drive-dot"></div>
+        <span id="diag-drive-label">Drive: غير متصل</span>
+      </div>
+    </div>
+    <input type="file" id="file-input" accept="image/*" multiple style="display:none" onchange="handleFiles(this.files)">
+    <button class="modal-save-btn" id="diag-save-btn" onclick="saveDiagram()">حفظ المخطط</button>
+    <button class="modal-cancel-btn" onclick="closeDiagModal()">إلغاء</button>
+  </div>
+</div>
+
+<!-- Type Manager Modal -->
+<div class="modal-overlay" id="type-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">إدارة أنواع المخططات</div>
+    <div class="modal-sub">أضف أو احذف أنواع المخططات التي تظهر في الفلتر</div>
+    <div class="type-chip-wrap" id="type-chip-wrap"></div>
+    <div class="type-add-row">
+      <input class="type-add-input" id="type-new-input" placeholder="نوع جديد...">
+      <button class="type-add-btn" onclick="addDiagType()">أضف</button>
+    </div>
+    <button class="modal-save-btn" onclick="closeTypeModal()" style="margin-top:16px">تم</button>
+  </div>
+</div>
+
+<!-- Confirm -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <div class="confirm-title" id="confirm-title"></div>
+    <div class="confirm-msg" id="confirm-msg"></div>
+    <div class="confirm-btns">
+      <button class="cancel" onclick="closeConfirm()">إلغاء</button>
+      <button class="ok" id="confirm-ok-btn">حذف</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- ═══ JAVASCRIPT ═══ -->
+<script>
+// ══════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════
+const S = {
+  user: null,
+  driveToken: null,
+  driveConnected: false,
+  categories:  [],   // {id, name, icon, color, fields:[{id,name,type}], driveFolder}
+  brands:      [],   // {id, name, abbr, color, categoryId, createdAt}
+  diagrams:    [],   // {id, name, type, model, notes, brandId, categoryId, images[], favorite, customFields:{}, createdAt}
+  diagTypes:   ['ECU','SCR/DPF','Transmission','CAN Bus','Sensors','Fuses','Wiring','Hydraulic','Electrical'],
+  screenStack: [],
+  currentCat:  null,
+  currentBrand:null,
+  currentDiag: null,
+  currentImgIdx: 0,
+  currentScale:  1,
+  notesVisible:  false,
+  fieldsVisible: false,
+  pendingFiles:  [],
+  editingDiagId: null,
+  editingBrandId:null,
+  editingCatId:  null,
+  editingCatFields: [],
+  isOnline: navigator.onLine,
+  pendingSync: [],   // ops to sync when back online
+  fbReady: false,
+  unsubscribers: [],
+};
+
+const COLORS = ['#2d7dd2','#1a8a5a','#c47a1a','#c0392b','#7c4dbd','#16a085','#d35400','#2980b9','#8e44ad','#27ae60','#d4a017','#555'];
+const ICONS  = ['🚚','🏗️','⚡','🔧','⛽','🚜','🛥️','✈️','🏭','🔩','🛠️','📦'];
+
+// ══════════════════════════════════════════════════════════
+// FIREBASE HELPERS
+// ══════════════════════════════════════════════════════════
+function fb() { return window._fb || {}; }
+function uid() { return S.user?.uid || 'local'; }
+
+function userPath(col) { return `users/${uid()}/${col}`; }
+
+async function getCollection(col) {
+  if(!fb().ready || !fb().db) throw new Error('no-fb');
+  const snap = await fb().getDocs(fb().collection(fb().db, userPath(col)));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+async function addToCollection(col, data) {
+  if(!fb().ready || !fb().db) throw new Error('no-fb');
+  const ref = await fb().addDoc(fb().collection(fb().db, userPath(col)), { ...data, _updatedAt: Date.now() });
+  return ref.id;
+}
+async function updateDoc_(col, id, data) {
+  if(!fb().ready || !fb().db) throw new Error('no-fb');
+  await fb().updateDoc(fb().doc(fb().db, userPath(col), id), { ...data, _updatedAt: Date.now() });
+}
+async function deleteDoc_(col, id) {
+  if(!fb().ready || !fb().db) throw new Error('no-fb');
+  await fb().deleteDoc(fb().doc(fb().db, userPath(col), id));
+}
+
+// Offline-first save: local first, then cloud
+async function cloudSave(col, id, data) {
+  saveLocal();
+  if(!S.isOnline) { queueSync('set', col, id, data); return id; }
+  try {
+    if(!fb().ready) throw new Error('no-fb');
+    if(id.startsWith('_loc_')) {
+      // New doc — let Firestore assign ID
+      const fid = await addToCollection(col, data);
+      // Update local ID
+      replaceLocalId(col, id, fid);
+      saveLocal();
+      return fid;
+    } else {
+      await updateDoc_(col, id, data);
+      return id;
+    }
+  } catch(e) {
+    queueSync('set', col, id, data);
+    return id;
+  }
+}
+async function cloudDelete(col, id) {
+  saveLocal();
+  if(!S.isOnline || id.startsWith('_loc_')) return;
+  try { await deleteDoc_(col, id); } catch(e) { queueSync('del', col, id, null); }
+}
+
+function replaceLocalId(col, oldId, newId) {
+  const arr = col === 'categories' ? S.categories : col === 'brands' ? S.brands : S.diagrams;
+  const item = arr.find(x => x.id === oldId);
+  if(item) {
+    item.id = newId;
+    // Update references in diagrams
+    if(col === 'brands') S.diagrams.forEach(d => { if(d.brandId === oldId) d.brandId = newId; });
+    if(col === 'categories') {
+      S.brands.forEach(b => { if(b.categoryId === oldId) b.categoryId = newId; });
+      S.diagrams.forEach(d => { if(d.categoryId === oldId) d.categoryId = newId; });
+    }
+  }
+}
+
+function queueSync(op, col, id, data) {
+  S.pendingSync.push({ op, col, id, data, ts: Date.now() });
+  localStorage.setItem('ap_pendingsync', JSON.stringify(S.pendingSync));
+}
+
+async function flushPendingSync() {
+  if(!S.pendingSync.length || !fb().ready) return;
+  const ops = [...S.pendingSync];
+  S.pendingSync = [];
+  localStorage.removeItem('ap_pendingsync');
+  for(const op of ops) {
+    try {
+      if(op.op === 'del') await deleteDoc_(op.col, op.id);
+      else {
+        if(op.id.startsWith('_loc_')) {
+          const fid = await addToCollection(op.col, op.data);
+          replaceLocalId(op.col, op.id, fid);
+        } else {
+          await updateDoc_(op.col, op.id, op.data);
+        }
+      }
+    } catch(e) { queueSync(op.op, op.col, op.id, op.data); }
+  }
+  saveLocal();
+}
+
+// ══════════════════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════════════════
+async function signInWithGoogle() {
+  if(!fb().auth) { showToast('Firebase غير مضبوط'); return; }
+
+  const provider = new fb().GoogleAuthProvider();
+  provider.addScope('https://www.googleapis.com/auth/drive.file');
+
+  // الموبايل والمتصفحات اللي تحجب الـ popup → نستخدم Redirect
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  try {
+    if(isMobile) {
+      // Redirect: يحول لصفحة Google ويرجع — النتيجة تُعالَج في getRedirectResult أعلاه
+      showToast('جاري التحويل لـ Google...');
+      await fb().signInWithRedirect(fb().auth, provider);
+    } else {
+      // Desktop: Popup عادي
+      const result = await fb().signInWithPopup(fb().auth, provider);
+      const credential = fb().GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken;
+      if(token) {
+        S.driveToken = token;
+        localStorage.setItem('ap_drive_token', token);
+      }
+      onUserReady(result.user);
+    }
+  } catch(e) {
+    console.error('Login Error:', e.code, e.message);
+    if(e.code === 'auth/popup-blocked' || e.code === 'auth/popup-closed-by-user') {
+      // الـ popup انحجب — نحاول Redirect بدل
+      showToast('جاري التحويل لـ Google...');
+      try { await fb().signInWithRedirect(fb().auth, provider); } catch(e2) { showToast('فشل تسجيل الدخول — تحقق من إعدادات Firebase'); }
+    } else if(e.code === 'auth/unauthorized-domain') {
+      showToast('الدومين غير مسجل في Firebase — راجع Authorized Domains');
+    } else {
+      showToast('خطأ: ' + (e.code || e.message));
+    }
+  }
+}
+
+function skipAuth() { onUserReady(null); }
+
+function onUserReady(user) {
+  S.user = user;
+  S.fbReady = !!fb().ready;
+  // استرجع الـ token — إما من الـ redirect أو من LocalStorage
+  if(!S.driveToken) {
+    S.driveToken = window._pendingRedirectToken || localStorage.getItem('ap_drive_token');
+    window._pendingRedirectToken = null;
+  }
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  if(!fb().ready) document.getElementById('setup-banner').classList.add('show');
+  updateDriveStatus();
+  loadAll();
+}
+
+function signOutUser() {
+  showConfirm('تسجيل الخروج', 'هل تريد تسجيل الخروج؟', async () => {
+    localStorage.removeItem('ap_drive_token');
+    S.driveToken = null;
+    if(S.user) await fb().signOut(fb().auth);
+    location.reload();
+  }, 'خروج', true);
+}
+
+if(fb().auth) {
+  fb().onAuthStateChanged(fb().auth, user => {
+    if(user && document.getElementById('auth-screen').style.display !== 'none')
+      onUserReady(user);
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// GOOGLE DRIVE
+// ══════════════════════════════════════════════════════════
+function updateDriveStatus() {
+  const connected = !!S.driveToken;
+  S.driveConnected = connected;
+  const dd = document.getElementById('diag-drive-dot');
+  const dl = document.getElementById('diag-drive-label');
+  if(dd) dd.className = 'dot' + (connected ? ' ok' : '');
+  if(dl) dl.textContent = connected ? 'Drive: متصل ✓' : 'Drive: غير متصل — الصور محلية';
+}
+
+async function ensureDriveFolder(name, parentId = null) {
+  if(!S.driveToken) return null;
+  try {
+    let q = `name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+    if(parentId) q += ` and '${parentId}' in parents`;
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}`,
+      { headers: { Authorization: `Bearer ${S.driveToken}` } });
+    const data = await res.json();
+    if(data.files?.length) return data.files[0].id;
+    const body = { name, mimeType:'application/vnd.google-apps.folder' };
+    if(parentId) body.parents = [parentId];
+    const cr = await fetch('https://www.googleapis.com/drive/v3/files', {
+      method:'POST', headers:{ Authorization:`Bearer ${S.driveToken}`, 'Content-Type':'application/json' },
+      body: JSON.stringify(body)
+    });
+    const created = await cr.json();
+    return created.id;
+  } catch(e) { return null; }
+}
+
+async function uploadToDrive(file, catName, brandName) {
+  if(!S.driveToken) return null;
+  try {
+    // Create nested folders: Atlas-Pro / catName / brandName
+    const rootId = await ensureDriveFolder('Atlas-Pro');
+    const catId  = await ensureDriveFolder(catName, rootId);
+    const folderId = await ensureDriveFolder(brandName, catId) || rootId;
+
+    const meta = { name: file.name, parents: [folderId] };
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json' }));
+    form.append('file', file);
+    const upRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+      { method:'POST', headers:{ Authorization:`Bearer ${S.driveToken}` }, body: form });
+    const uploaded = await upRes.json();
+    // Make public
+    await fetch(`https://www.googleapis.com/drive/v3/files/${uploaded.id}/permissions`, {
+      method:'POST', headers:{ Authorization:`Bearer ${S.driveToken}`, 'Content-Type':'application/json' },
+      body: JSON.stringify({ role:'reader', type:'anyone' })
+    });
+    return `https://drive.google.com/uc?export=view&id=${uploaded.id}`;
+  } catch(e) { console.error('Drive upload:', e); return null; }
+}
+
+// ══════════════════════════════════════════════════════════
+// LOCAL STORAGE
+// ══════════════════════════════════════════════════════════
+function saveLocal() {
+  try {
+    localStorage.setItem('ap_cats',      JSON.stringify(S.categories));
+    localStorage.setItem('ap_brands',    JSON.stringify(S.brands));
+    localStorage.setItem('ap_diagrams',  JSON.stringify(S.diagrams));
+    localStorage.setItem('ap_diag_types',JSON.stringify(S.diagTypes));
+  } catch(e) {
+    // QuotaExceeded — strip base64 images older than 30 days
+    const cutoff = Date.now() - 30*24*3600*1000;
+    S.diagrams.forEach(d => {
+      if(d.createdAt < cutoff)
+        d.images = d.images?.filter(i => !i.startsWith('data:')) || [];
+    });
+    try { localStorage.setItem('ap_diagrams', JSON.stringify(S.diagrams)); } catch(e2){}
+  }
+}
+function loadLocal() {
+  S.categories = JSON.parse(localStorage.getItem('ap_cats')    || '[]');
+  S.brands     = JSON.parse(localStorage.getItem('ap_brands')  || '[]');
+  S.diagrams   = JSON.parse(localStorage.getItem('ap_diagrams')|| '[]');
+  S.diagTypes  = JSON.parse(localStorage.getItem('ap_diag_types') || JSON.stringify(S.diagTypes));
+  S.pendingSync= JSON.parse(localStorage.getItem('ap_pendingsync') || '[]');
+  // Migrate: add default categories if empty
+  if(!S.categories.length) {
+    S.categories = [
+      { id:'trucks', name:'شاحنات', icon:'🚚', color:'#2d7dd2', fields:[], driveFolder:'Trucks' },
+      { id:'equip',  name:'معدات ثقيلة', icon:'🏗️', color:'#1a8a5a', fields:[], driveFolder:'Equipment' },
+      { id:'gen',    name:'مولدات', icon:'⚡', color:'#c47a1a', fields:[], driveFolder:'Generators' },
+    ];
+    // Migrate old brands categoryId
+    S.brands.forEach(b => { if(b.category && !b.categoryId) b.categoryId = b.category; });
+    S.diagrams.forEach(d => { if(d.category && !d.categoryId) d.categoryId = d.category; });
+    saveLocal();
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// LOAD ALL
+// ══════════════════════════════════════════════════════════
+async function loadAll() {
+  loadLocal();
+  renderAll();
+  renderNav();
+
+  if(fb().ready && S.isOnline) {
+    showSyncBar('جاري تحميل البيانات...');
+    try {
+      const [cats, brands, diagrams] = await Promise.all([
+        getCollection('categories'),
+        getCollection('brands'),
+        getCollection('diagrams'),
+      ]);
+      if(cats.length)     S.categories = cats;
+      if(brands.length)   S.brands     = brands;
+      if(diagrams.length) S.diagrams   = diagrams;
+      // Also load types
+      const typesDoc = await fb().getDocs(fb().collection(fb().db, userPath('settings')));
+      typesDoc.docs.forEach(d => { if(d.id === 'types') S.diagTypes = d.data().list || S.diagTypes; });
+    } catch(e) { /* use local */ }
+    saveLocal();
+    renderAll();
+    hideSyncBar();
+    await flushPendingSync();
+  }
+}
+
+function renderAll() {
+  renderHome();
+  renderSettingsScreen();
+}
+
+async function manualSync() {
+  if(!S.isOnline) { showToast('لا يوجد اتصال بالإنترنت'); return; }
+  showSyncBar('جاري المزامنة...');
+  await loadAll();
+  hideSyncBar();
+  showToast('تمت المزامنة ✓');
+}
+
+function showSyncBar(msg) {
+  document.getElementById('sync-msg').textContent = msg;
+  document.getElementById('sync-bar').classList.add('show');
+}
+function hideSyncBar() {
+  document.getElementById('sync-bar').classList.remove('show');
+}
+
+// ══════════════════════════════════════════════════════════
+// ONLINE / OFFLINE
+// ══════════════════════════════════════════════════════════
+window.addEventListener('online',  () => { S.isOnline=true;  updateOfflineBadge(); flushPendingSync().then(()=>manualSync()); });
+window.addEventListener('offline', () => { S.isOnline=false; updateOfflineBadge(); showToast('لا يوجد اتصال — سيتم الحفظ محلياً'); });
+function updateOfflineBadge() {
+  document.getElementById('offline-badge').classList.toggle('show', !S.isOnline);
+}
+
+// ══════════════════════════════════════════════════════════
+// NAV
+// ══════════════════════════════════════════════════════════
+const NAV_ITEMS = [
+  { id:'home',     label:'الرئيسية', icon:'<rect x="2" y="2" width="8" height="8" rx="2"/><rect x="12" y="2" width="8" height="8" rx="2"/><rect x="2" y="12" width="8" height="8" rx="2"/><rect x="12" y="12" width="8" height="8" rx="2"/>' },
+  { id:'search',   label:'بحث',      icon:'<circle cx="9" cy="9" r="6"/><line x1="13.5" y1="13.5" x2="19" y2="19"/>' },
+  { id:'favs',     label:'المفضلة',  icon:'<path d="M11 4l2.5 5.5L19 10.5l-4 4 1 5.5L11 17l-5 3 1-5.5-4-4 5.5-1z"/>' },
+  { id:'settings', label:'الإعدادات',icon:'<circle cx="11" cy="11" r="3"/><path d="M11 2v2M11 18v2M4.22 4.22l1.42 1.42M16.36 16.36l1.42 1.42M2 11h2M18 11h2M4.22 17.78l1.42-1.42M16.36 5.64l1.42-1.42"/>' },
+];
+function renderNav() {
+  const targets = ['home-nav','brands-nav','diagrams-nav','search-nav','favs-nav','settings-nav'];
+  targets.forEach(t => {
+    const el = document.getElementById(t);
+    if(!el) return;
+    el.innerHTML = NAV_ITEMS.map(n => `
+      <div class="nav-item${S.currentTab===n.id?' active':''}" onclick="switchTab('${n.id}')">
+        <svg viewBox="0 0 22 22">${n.icon}</svg><span>${n.label}</span>
+      </div>`).join('');
+  });
+}
+
+let _currentTab = 'home';
+Object.defineProperty(S, 'currentTab', {
+  get(){ return _currentTab; },
+  set(v){ _currentTab = v; renderNav(); }
+});
+
+function switchTab(tab) {
+  S.screenStack = [];
+  const map = { home:'home-screen', search:'search-screen', favs:'favs-screen', settings:'settings-screen' };
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(map[tab]).classList.add('active');
+  S.currentTab = tab;
+  if(tab==='favs')     renderFavs();
+  if(tab==='settings') renderSettingsScreen();
+  if(tab==='search')   setTimeout(() => document.getElementById('search-input').focus(), 200);
+}
+function pushScreen(id) {
+  const cur = document.querySelector('.screen.active');
+  if(cur) S.screenStack.push(cur.id);
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function goBack() {
+  const prev = S.screenStack.pop();
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(prev||'home-screen').classList.add('active');
+  if(prev==='diagrams-screen') renderDiagrams();
+  if(prev==='brands-screen')   renderBrands();
+}
+
+// ══════════════════════════════════════════════════════════
+// HOME
+// ══════════════════════════════════════════════════════════
+function renderHome() {
+  const total = S.diagrams.length;
+  const favs  = S.diagrams.filter(d => d.favorite).length;
+  document.getElementById('stat-total').textContent  = total;
+  document.getElementById('stat-brands').textContent = S.brands.length;
+  document.getElementById('stat-favs').textContent   = favs;
+
+  // Category grid
+  const grid = document.getElementById('cat-grid');
+  grid.innerHTML = S.categories.map(cat => {
+    const catBrands = S.brands.filter(b => b.categoryId === cat.id).length;
+    const catDiags  = S.diagrams.filter(d => d.categoryId === cat.id).length;
+    return `<div class="cat-card custom" style="border-color:${cat.color}40" onclick="openCategory('${cat.id}')">
+      <div class="cat-card-icon" style="background:${cat.color}20">${cat.icon||'📁'}</div>
+      <div class="cat-card-info">
+        <div class="cat-card-name">${cat.name}</div>
+        <div class="cat-card-count">${catBrands} ماركة · ${catDiags} مخطط</div>
+      </div>
+      <div style="display:flex;gap:5px;align-items:center">
+        <div class="cat-card-arr" onclick="event.stopPropagation();editCategory('${cat.id}')"><svg viewBox="0 0 13 13" width="12" height="12" fill="none" stroke="var(--text3)" stroke-width="1.5"><path d="M1 9L3.5 11.5L11 4l-2.5-2.5z"/></svg></div>
+        <div class="cat-card-arr"><svg viewBox="0 0 12 12"><path d="M4 2l4 4-4 4"/></svg></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Recent
+  const recent = [...S.diagrams].sort((a,b) => (b.createdAt||0)-(a.createdAt||0)).slice(0,8);
+  const rl = document.getElementById('recent-list');
+  if(!recent.length) {
+    rl.innerHTML = '<div class="empty-state"><svg viewBox="0 0 48 48"><rect x="6" y="6" width="36" height="36" rx="4"/><line x1="16" y1="16" x2="32" y2="16"/><line x1="16" y1="24" x2="28" y2="24"/></svg><p>لا توجد مخططات بعد<br>أضف قسماً وابدأ</p></div>';
+    return;
+  }
+  rl.innerHTML = recent.map(d => {
+    const brand = S.brands.find(b => b.id === d.brandId);
+    const cat   = S.categories.find(c => c.id === d.categoryId);
+    return `<div class="recent-item" onclick="openDiagramDirect('${d.id}')">
+      <div class="recent-dot" style="background:${brand?.color||'#2d7dd2'}"></div>
+      <div class="recent-info">
+        <div class="recent-name">${d.name}</div>
+        <div class="recent-meta">${brand?.name||''} · ${cat?.name||''} · ${timeAgo(d.createdAt)}</div>
+      </div>
+      <div class="recent-arr"><svg viewBox="0 0 12 12"><path d="M4 2l4 4-4 4"/></svg></div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+// CATEGORIES
+// ══════════════════════════════════════════════════════════
+function genId() { return '_loc_' + Date.now() + Math.random().toString(36).slice(2,6); }
+
+function showAddCategory() { openCatModal(null); }
+function editCategory(id)  { openCatModal(id); }
+
+function openCatModal(id) {
+  S.editingCatId = id;
+  S.editingCatFields = [];
+  const modal = document.getElementById('cat-modal');
+  buildColorRow('cat-color-row', id ? S.categories.find(c=>c.id===id)?.color : COLORS[0]);
+  buildIconRow();
+  if(id) {
+    const cat = S.categories.find(c=>c.id===id);
+    document.getElementById('cat-modal-title').textContent = 'تعديل القسم';
+    document.getElementById('cat-name-input').value = cat.name;
+    S.editingCatFields = cat.fields ? JSON.parse(JSON.stringify(cat.fields)) : [];
+    // Select icon
+    document.querySelectorAll('.icon-opt').forEach(el => el.classList.toggle('selected', el.dataset.icon === cat.icon));
+  } else {
+    document.getElementById('cat-modal-title').textContent = 'قسم جديد';
+    document.getElementById('cat-name-input').value = '';
+    document.querySelectorAll('.icon-opt').forEach((el,i) => el.classList.toggle('selected', i===0));
+  }
+  renderCatFieldsList();
+  modal.classList.add('show');
+}
+function closeCatModal() { document.getElementById('cat-modal').classList.remove('show'); }
+
+function buildIconRow() {
+  document.getElementById('cat-icon-row').innerHTML = ICONS.map(ic =>
+    `<div class="icon-opt" data-icon="${ic}" onclick="selectIcon(this)">${ic}</div>`
+  ).join('');
+}
+function selectIcon(el) {
+  document.querySelectorAll('.icon-opt').forEach(e => e.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function addFieldDef() {
+  const name = document.getElementById('new-field-name').value.trim();
+  const type = document.getElementById('new-field-type').value;
+  if(!name) { showToast('أدخل اسم الخانة'); return; }
+  S.editingCatFields.push({ id:'f_'+Date.now(), name, type });
+  document.getElementById('new-field-name').value = '';
+  renderCatFieldsList();
+}
+function removeFieldDef(idx) {
+  S.editingCatFields.splice(idx,1);
+  renderCatFieldsList();
+}
+function renderCatFieldsList() {
+  const types = { text:'نص', number:'رقم', date:'تاريخ', select:'قائمة' };
+  document.getElementById('cat-fields-list').innerHTML = S.editingCatFields.map((f,i) =>
+    `<div class="field-def-item">
+      <span class="drag-handle">⠿</span>
+      <span class="field-def-name">${f.name}</span>
+      <span class="field-def-type">${types[f.type]||f.type}</span>
+      <button class="field-def-del" onclick="removeFieldDef(${i})"><svg viewBox="0 0 10 10"><line x1="2" y1="2" x2="8" y2="8"/><line x1="8" y1="2" x2="2" y2="8"/></svg></button>
+    </div>`
+  ).join('');
+}
+
+async function saveCategory() {
+  const name = document.getElementById('cat-name-input').value.trim();
+  if(!name) { showToast('أدخل اسم القسم'); return; }
+  const color = document.querySelector('#cat-color-row .color-dot.selected')?.dataset.color || COLORS[0];
+  const icon  = document.querySelector('.icon-opt.selected')?.dataset.icon || '📁';
+  const fields = S.editingCatFields;
+  const data  = { name, color, icon, fields };
+
+  if(S.editingCatId) {
+    const idx = S.categories.findIndex(c => c.id===S.editingCatId);
+    S.categories[idx] = { ...S.categories[idx], ...data };
+    await cloudSave('categories', S.editingCatId, data);
+    showToast('تم تحديث القسم');
+    // Create Drive folder if connected
+    if(S.driveConnected) ensureDriveFolder(name);
+  } else {
+    const id = genId();
+    S.categories.push({ id, ...data, createdAt: Date.now() });
+    const fid = await cloudSave('categories', id, { ...data, createdAt: Date.now() });
+    if(S.driveConnected) ensureDriveFolder(name);
+    showToast('تمت إضافة القسم');
+  }
+  closeCatModal();
+  renderHome();
+}
+
+async function deleteCategory(id) {
+  const cat = S.categories.find(c=>c.id===id);
+  const bCount = S.brands.filter(b=>b.categoryId===id).length;
+  showConfirm('حذف القسم', `حذف "${cat?.name}"؟${bCount?`\nتحذير: ${bCount} ماركة و${S.diagrams.filter(d=>d.categoryId===id).length} مخطط ستُحذف أيضاً`:''}`, async () => {
+    const delBrands = S.brands.filter(b=>b.categoryId===id).map(b=>b.id);
+    S.categories = S.categories.filter(c=>c.id!==id);
+    S.brands     = S.brands.filter(b=>b.categoryId!==id);
+    S.diagrams   = S.diagrams.filter(d=>d.categoryId!==id);
+    saveLocal();
+    await cloudDelete('categories', id);
+    for(const bid of delBrands) await cloudDelete('brands', bid);
+    renderHome(); renderSettingsScreen();
+    showToast('تم الحذف');
+  });
+}
+
+function openCategory(catId) {
+  S.currentCat = S.categories.find(c=>c.id===catId);
+  if(!S.currentCat) return;
+  document.getElementById('brands-title').textContent = S.currentCat.name;
+  document.getElementById('brands-sub').textContent   = `${S.brands.filter(b=>b.categoryId===catId).length} ماركة`;
+  renderBrands();
+  pushScreen('brands-screen');
+}
+
+// ══════════════════════════════════════════════════════════
+// BRANDS
+// ══════════════════════════════════════════════════════════
+function showAddBrand() { openBrandModal(null); }
+function editBrand(id)  { openBrandModal(id); }
+
+function openBrandModal(id) {
+  S.editingBrandId = id;
+  buildColorRow('brand-color-row', id ? S.brands.find(b=>b.id===id)?.color : COLORS[0]);
+  // Category select
+  const sel = document.getElementById('brand-cat-select');
+  sel.innerHTML = S.categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  if(id) {
+    const b = S.brands.find(x=>x.id===id);
+    document.getElementById('brand-modal-title').textContent = 'تعديل الماركة';
+    document.getElementById('brand-name-input').value  = b.name;
+    document.getElementById('brand-abbr-input').value  = b.abbr||'';
+    sel.value = b.categoryId || S.currentCat?.id || S.categories[0]?.id;
+    document.querySelectorAll('#brand-color-row .color-dot').forEach(d => d.classList.toggle('selected', d.dataset.color===b.color));
+  } else {
+    document.getElementById('brand-modal-title').textContent = 'إضافة ماركة';
+    document.getElementById('brand-name-input').value  = '';
+    document.getElementById('brand-abbr-input').value  = '';
+    sel.value = S.currentCat?.id || S.categories[0]?.id;
+  }
+  document.getElementById('brand-modal').classList.add('show');
+}
+function closeBrandModal() { document.getElementById('brand-modal').classList.remove('show'); }
+
+async function saveBrand() {
+  const name     = document.getElementById('brand-name-input').value.trim();
+  if(!name) { showToast('أدخل اسم الماركة'); return; }
+  const abbr     = document.getElementById('brand-abbr-input').value.trim().toUpperCase() || name.substring(0,2).toUpperCase();
+  const color    = document.querySelector('#brand-color-row .color-dot.selected')?.dataset.color || COLORS[0];
+  const categoryId = document.getElementById('brand-cat-select').value;
+  const data     = { name, abbr, color, categoryId };
+
+  if(S.editingBrandId) {
+    const idx = S.brands.findIndex(b=>b.id===S.editingBrandId);
+    S.brands[idx] = { ...S.brands[idx], ...data };
+    await cloudSave('brands', S.editingBrandId, data);
+    showToast('تم تحديث الماركة');
+  } else {
+    const id = genId();
+    S.brands.push({ id, ...data, createdAt: Date.now() });
+    await cloudSave('brands', id, { ...data, createdAt: Date.now() });
+    // Create Drive folder: Atlas-Pro/cat/brand
+    if(S.driveConnected) {
+      const cat = S.categories.find(c=>c.id===categoryId);
+      await ensureDriveFolder(name);
+    }
+    showToast('تمت إضافة الماركة');
+  }
+  closeBrandModal();
+  renderHome();
+  if(S.currentCat) renderBrands();
+  renderSettingsScreen();
+}
+
+function confirmDeleteBrand(id) {
+  const b = S.brands.find(x=>x.id===id);
+  const count = S.diagrams.filter(d=>d.brandId===id).length;
+  showConfirm('حذف الماركة', `حذف "${b?.name}"؟${count?`\nتحذير: ${count} مخطط سيُحذف أيضاً`:''}`, async () => {
+    S.brands   = S.brands.filter(x=>x.id!==id);
+    S.diagrams = S.diagrams.filter(d=>d.brandId!==id);
+    saveLocal();
+    await cloudDelete('brands', id);
+    renderHome(); renderBrands(); renderSettingsScreen();
+    showToast('تم الحذف');
+  });
+}
+
+function renderBrands() {
+  const list   = document.getElementById('brand-list');
+  const catId  = S.currentCat?.id;
+  const brands = S.brands.filter(b => b.categoryId === catId);
+  if(!brands.length) {
+    list.innerHTML = `<div class="empty-state">
+      <svg viewBox="0 0 48 48"><rect x="6" y="10" width="36" height="28" rx="4"/><circle cx="17" cy="22" r="5"/><path d="M6 30l10-8 8 6 7-5 11 8"/></svg>
+      <p>لا توجد ماركات<br><span style="color:var(--accent);cursor:pointer" onclick="showAddBrand()">أضف ماركة جديدة</span></p>
+    </div>`;
+    return;
+  }
+  list.innerHTML = brands.map(b => {
+    const count = S.diagrams.filter(d=>d.brandId===b.id).length;
+    const abbr  = b.abbr || b.name.substring(0,2).toUpperCase();
+    return `<div class="brand-item" onclick="openBrand('${b.id}')">
+      <div class="brand-badge" style="background:${b.color||'#2d7dd2'}22">
+        <svg width="26" height="26" viewBox="0 0 28 28">
+          <rect x="2" y="2" width="24" height="24" rx="5" fill="${b.color||'#2d7dd2'}" opacity="0.25"/>
+          <text x="14" y="19" text-anchor="middle" font-size="${abbr.length>2?8:11}" font-weight="700" fill="${b.color||'#2d7dd2'}" font-family="Arial">${abbr}</text>
+        </svg>
+      </div>
+      <div class="brand-info">
+        <div class="brand-name">${b.name}</div>
+        <div class="brand-count">${count} مخطط</div>
+      </div>
+      <div class="brand-actions">
+        <div class="brand-edit-btn" onclick="event.stopPropagation();editBrand('${b.id}')"><svg viewBox="0 0 13 13"><path d="M1 9L3.5 11.5L11 4l-2.5-2.5z"/><line x1="8.5" y1="1.5" x2="11" y2="4"/></svg></div>
+        <div class="brand-del-btn" onclick="event.stopPropagation();confirmDeleteBrand('${b.id}')"><svg viewBox="0 0 13 13"><path d="M2 4h9M5 4V2.5h3V4M5.5 6v4M7.5 6v4M3 4l.5 7h6l.5-7"/></svg></div>
+        <div class="brand-arr"><svg viewBox="0 0 12 12"><path d="M4 2l4 4-4 4"/></svg></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+// DIAGRAMS
+// ══════════════════════════════════════════════════════════
+const TAG_COLORS = {
+  ECU:'#2d7dd2','SCR/DPF':'#1a8a5a',Transmission:'#c47a1a','CAN Bus':'#16a085',
+  Sensors:'#8e44ad',Fuses:'#c0392b',Wiring:'#d35400',Hydraulic:'#27ae60',Electrical:'#2980b9'
+};
+function tagColor(t) { return TAG_COLORS[t] || '#607d8b'; }
+
+function openBrand(brandId) {
+  S.currentBrand = S.brands.find(b=>b.id===brandId);
+  if(!S.currentBrand) return;
+  document.getElementById('diagrams-title').textContent = S.currentBrand.name;
+  document.getElementById('diagrams-sub').textContent   = 'اختر المخطط';
+  // Breadcrumb
+  const cat = S.categories.find(c=>c.id===S.currentBrand.categoryId);
+  document.getElementById('diagrams-breadcrumb').innerHTML =
+    `<span class="bc-item" onclick="switchTab('home')">${cat?.name||''}</span>
+     <span class="bc-sep">›</span>
+     <span class="bc-item">${S.currentBrand.name}</span>`;
+  S.filterType = 'all';
+  buildFilterChips();
+  renderDiagrams();
+  pushScreen('diagrams-screen');
+}
+
+function buildFilterChips() {
+  const chips = document.getElementById('filter-chips');
+  chips.innerHTML = ['الكل', ...S.diagTypes].map(t =>
+    `<span class="chip${t==='الكل'?' active':''}" onclick="filterDiags(this,'${t==='الكل'?'all':t}')">${t}</span>`
+  ).join('') + `<span class="chip" style="border-style:dashed" onclick="openTypeModal()">+ نوع</span>`;
+}
+
+function filterDiags(el, type) {
+  S.filterType = type;
+  document.querySelectorAll('#filter-chips .chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  renderDiagrams();
+}
+
+function renderDiagrams() {
+  const grid = document.getElementById('diag-grid');
+  let diags = S.diagrams.filter(d => d.brandId === S.currentBrand?.id);
+  if(S.filterType !== 'all') diags = diags.filter(d => d.type === S.filterType);
+  let html = diags.map(d => diagCard(d)).join('');
+  html += `<div class="diag-add-card" onclick="showAddDiagram()">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="7" x2="12" y2="17"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
+    <span>مخطط جديد</span></div>`;
+  grid.innerHTML = html;
+}
+
+function diagCard(d) {
+  const imgs = d.images||[];
+  const tc   = tagColor(d.type);
+  const fav  = d.favorite ? 'on' : '';
+  return `<div class="diag-card" onclick="openViewer('${d.id}')">
+    <div class="diag-img">
+      ${imgs[0] ? `<img src="${imgs[0]}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` : ''}
+      <div class="diag-img-placeholder" ${imgs[0]?'style="display:none"':''}>
+        <svg viewBox="0 0 36 36"><rect x="3" y="7" width="30" height="22" rx="3"/><circle cx="13" cy="16" r="4"/><path d="M3 22l8-7 7 7 6-5 9 7"/></svg>
+      </div>
+      <div class="diag-tag" style="background:${tc}20;color:${tc};border:1px solid ${tc}40">${d.type||'—'}</div>
+      <div class="diag-fav ${fav}" onclick="event.stopPropagation();toggleFav('${d.id}')">
+        <svg viewBox="0 0 12 12"><path d="M6 1.5l1.2 3.6H11l-3 2.2 1.2 3.6L6 8.6l-3.2 2.3L4 7.3 1 5.1h3.8z"/></svg>
+      </div>
+      ${imgs.length>1?`<div style="position:absolute;bottom:4px;left:4px;background:rgba(0,0,0,.6);border-radius:4px;padding:2px 5px;font-size:9px;color:rgba(255,255,255,.8)">${imgs.length} صور</div>`:''}
+    </div>
+    <div class="diag-body">
+      <div class="diag-title">${d.name}</div>
+      <div class="diag-meta">${d.model||''} · ${timeAgo(d.createdAt)}</div>
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════════════
+// DIAGRAM MODAL
+// ══════════════════════════════════════════════════════════
+function showAddDiagram()   { openDiagModal(null); }
+function editCurrentDiagram() { if(S.currentDiag) openDiagModal(S.currentDiag.id); }
+
+function openDiagModal(id) {
+  S.editingDiagId = id;
+  S.pendingFiles  = [];
+  document.getElementById('upload-preview').innerHTML = '';
+  document.getElementById('upload-area').classList.remove('has-file');
+  document.getElementById('upload-span').textContent = 'اضغط لإضافة صور';
+  updateDriveStatus();
+
+  // Build type select
+  const sel = document.getElementById('diag-type-select');
+  sel.innerHTML = S.diagTypes.map(t => `<option value="${t}">${t}</option>`).join('');
+
+  const cat = S.currentBrand ? S.categories.find(c=>c.id===S.currentBrand.categoryId) : null;
+
+  if(id) {
+    const d = S.diagrams.find(x=>x.id===id);
+    document.getElementById('diag-modal-title').textContent = 'تعديل المخطط';
+    document.getElementById('diag-modal-sub').textContent   = S.currentBrand?.name||'';
+    document.getElementById('diag-name-input').value  = d.name;
+    document.getElementById('diag-model-input').value = d.model||'';
+    document.getElementById('diag-notes-input').value = d.notes||'';
+    sel.value = d.type||S.diagTypes[0];
+    buildCustomFields(cat, d.customFields||{});
+    // Show existing images
+    (d.images||[]).forEach((url,i) => addThumb(url, i, true));
+  } else {
+    document.getElementById('diag-modal-title').textContent = 'مخطط جديد';
+    document.getElementById('diag-modal-sub').textContent   = `${S.currentBrand?.name||''} — ${cat?.name||''}`;
+    document.getElementById('diag-name-input').value  = '';
+    document.getElementById('diag-model-input').value = '';
+    document.getElementById('diag-notes-input').value = '';
+    buildCustomFields(cat, {});
+  }
+  document.getElementById('diag-modal').classList.add('show');
+}
+function closeDiagModal() { document.getElementById('diag-modal').classList.remove('show'); }
+
+function buildCustomFields(cat, vals) {
+  const container = document.getElementById('diag-custom-fields');
+  if(!cat?.fields?.length) { container.innerHTML=''; return; }
+  container.innerHTML = cat.fields.map(f => `
+    <label class="modal-label">${f.name}</label>
+    <input class="modal-input" id="cf_${f.id}" type="${f.type==='number'?'number':f.type==='date'?'date':'text'}"
+      value="${vals[f.id]||''}" placeholder="${f.name}">
+  `).join('');
+}
+
+function triggerUpload() { document.getElementById('file-input').click(); }
+
+function handleFiles(files) {
+  for(const f of files) {
+    const idx = S.pendingFiles.length;
+    S.pendingFiles.push(f);
+    const reader = new FileReader();
+    reader.onload = e => addThumb(e.target.result, idx, false);
+    reader.readAsDataURL(f);
+  }
+  document.getElementById('upload-area').classList.toggle('has-file', S.pendingFiles.length>0);
+  document.getElementById('upload-span').textContent = S.pendingFiles.length>0 ? `${S.pendingFiles.length} صورة` : 'اضغط لإضافة صور';
+}
+
+function addThumb(src, idx, existing) {
+  const wrap = document.createElement('div');
+  wrap.className = 'upload-thumb-wrap';
+  wrap.dataset.idx = idx;
+  wrap.innerHTML = `<img class="upload-thumb" src="${src}">
+    <div class="upload-thumb-del" onclick="removeThumb(this,${idx},${existing})">
+      <svg viewBox="0 0 10 10"><line x1="2" y1="2" x2="8" y2="8"/><line x1="8" y1="2" x2="2" y2="8"/></svg>
+    </div>`;
+  document.getElementById('upload-preview').appendChild(wrap);
+}
+
+let _existingImages = [];
+function removeThumb(btn, idx, existing) {
+  btn.parentElement.remove();
+  if(existing) {
+    _existingImages = _existingImages.filter((_,i) => i!==idx);
+  } else {
+    S.pendingFiles.splice(idx,1);
+  }
+}
+
+async function saveDiagram() {
+  const name = document.getElementById('diag-name-input').value.trim();
+  if(!name) { showToast('أدخل اسم المخطط'); return; }
+  const btn = document.getElementById('diag-save-btn');
+  btn.textContent = 'جاري الحفظ...'; btn.disabled = true;
+
+  const cat   = S.currentBrand ? S.categories.find(c=>c.id===S.currentBrand.categoryId) : null;
+  // Collect custom field values
+  const customFields = {};
+  if(cat?.fields) cat.fields.forEach(f => {
+    const el = document.getElementById('cf_'+f.id);
+    if(el) customFields[f.id] = el.value;
+  });
+
+  // Upload images
+  let imageUrls = S.editingDiagId ? [...(_existingImages)] : [];
+  for(let i=0; i<S.pendingFiles.length; i++) {
+    const f = S.pendingFiles[i];
+    let url = null;
+    if(S.driveConnected) {
+      url = await uploadToDrive(f, cat?.name||'General', S.currentBrand?.name||'Unknown');
+    }
+    if(!url) {
+      // Fallback: base64 with size warning
+      if(f.size > 2*1024*1024) {
+        showToast('صورة كبيرة — يفضل ربط Drive');
+      }
+      url = await fileToBase64(f);
+    }
+    if(url) imageUrls.push(url);
+  }
+
+  const data = {
+    name,
+    type:    document.getElementById('diag-type-select').value,
+    model:   document.getElementById('diag-model-input').value.trim(),
+    notes:   document.getElementById('diag-notes-input').value.trim(),
+    brandId: S.currentBrand?.id,
+    categoryId: S.currentBrand?.categoryId,
+    images:  imageUrls,
+    customFields,
+    favorite: S.editingDiagId ? S.diagrams.find(d=>d.id===S.editingDiagId)?.favorite : false,
+  };
+
+  if(S.editingDiagId) {
+    const idx = S.diagrams.findIndex(d=>d.id===S.editingDiagId);
+    S.diagrams[idx] = { ...S.diagrams[idx], ...data };
+    await cloudSave('diagrams', S.editingDiagId, data);
+    S.currentDiag = S.diagrams[idx];
+    showToast('تم التحديث');
+  } else {
+    const id = genId();
+    const diag = { id, ...data, createdAt: Date.now() };
+    S.diagrams.push(diag);
+    await cloudSave('diagrams', id, { ...data, createdAt: Date.now() });
+    showToast('تم الحفظ');
+  }
+
+  closeDiagModal();
+  renderDiagrams();
+  renderHome();
+  btn.textContent = 'حفظ المخطط'; btn.disabled = false;
+  S.pendingFiles = []; _existingImages = [];
+}
+
+function fileToBase64(file) {
+  return new Promise(res => { const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(file); });
+}
+
+// ══════════════════════════════════════════════════════════
+// VIEWER
+// ══════════════════════════════════════════════════════════
+function openViewer(diagId) {
+  S.currentDiag   = S.diagrams.find(d=>d.id===diagId);
+  if(!S.currentDiag) return;
+  S.currentImgIdx = 0;
+  S.currentScale  = 1;
+  S.notesVisible  = false;
+  S.fieldsVisible = false;
+  _existingImages = [...(S.currentDiag.images||[])];
+  document.getElementById('notes-panel').classList.remove('show');
+  document.getElementById('fields-panel').classList.remove('show');
+  renderViewer();
+  pushScreen('viewer-screen');
+}
+function openDiagramDirect(diagId) {
+  const d = S.diagrams.find(x=>x.id===diagId);
+  if(!d) return;
+  S.currentBrand = S.brands.find(b=>b.id===d.brandId);
+  S.currentCat   = S.categories.find(c=>c.id===d.categoryId);
+  openViewer(diagId);
+}
+
+function renderViewer() {
+  const d    = S.currentDiag;
+  const imgs = d.images||[];
+  const brand= S.brands.find(b=>b.id===d.brandId);
+  document.getElementById('viewer-title').textContent   = d.name;
+  document.getElementById('viewer-brand').textContent   = `${brand?.name||''} · ${d.type||''}`;
+  document.getElementById('viewer-counter').textContent = imgs.length>1 ? `${S.currentImgIdx+1}/${imgs.length}` : '';
+  document.getElementById('fav-btn').className = 'vt-btn' + (d.favorite?' on':'');
+  const cont = document.getElementById('viewer-img-container');
+  if(imgs.length) {
+    cont.innerHTML = `<img src="${imgs[S.currentImgIdx]}" id="viewer-img" style="transform:scale(${S.currentScale})" ondblclick="toggleFullZoom()">`;
+    initViewerTouch();
+  } else {
+    cont.innerHTML = `<div class="no-img"><svg viewBox="0 0 60 60"><rect x="5" y="10" width="50" height="40" rx="4"/><circle cx="22" cy="26" r="6"/><path d="M5 38l14-10 10 8 10-7 16 10"/></svg><span>لا توجد صورة</span></div>`;
+  }
+  document.getElementById('viewer-dots').innerHTML = imgs.length>1
+    ? imgs.map((_,i) => `<div class="v-dot${i===S.currentImgIdx?' active':''}" onclick="goToImg(${i})"></div>`).join('') : '';
+  document.getElementById('notes-textarea').value = d.notes||'';
+  // Fields panel
+  renderFieldsPanel(d);
+}
+
+function renderFieldsPanel(d) {
+  const cat    = S.categories.find(c=>c.id===d.categoryId);
+  const brand  = S.brands.find(b=>b.id===d.brandId);
+  const content= document.getElementById('fields-panel-content');
+  const rows   = [
+    { label:'الاسم',    value: d.name },
+    { label:'الماركة',  value: brand?.name||'—' },
+    { label:'النوع',    value: d.type||'—' },
+    { label:'الموديل',  value: d.model||'—' },
+  ];
+  if(cat?.fields) cat.fields.forEach(f => {
+    rows.push({ label: f.name, value: d.customFields?.[f.id] || '—' });
+  });
+  if(d.notes) rows.push({ label:'ملاحظات', value: d.notes });
+  content.innerHTML = rows.map(r =>
+    `<div class="field-row"><span class="field-label">${r.label}</span><span class="field-value">${r.value}</span></div>`
+  ).join('');
+}
+
+function goToImg(i) { S.currentImgIdx=i; S.currentScale=1; renderViewer(); }
+function zoomIn()   { S.currentScale=Math.min(S.currentScale+.5,5); applyZoom(); }
+function zoomOut()  { S.currentScale=Math.max(S.currentScale-.5,.5); applyZoom(); }
+function applyZoom(){ const img=document.getElementById('viewer-img'); if(img) img.style.transform=`scale(${S.currentScale})`; }
+function toggleFullZoom(){ S.currentScale=S.currentScale>1?1:2.5; applyZoom(); }
+function toggleViewerFav() { if(S.currentDiag) toggleFav(S.currentDiag.id); }
+function toggleFieldsPanel() {
+  S.fieldsVisible=!S.fieldsVisible;
+  S.notesVisible=false;
+  document.getElementById('notes-panel').classList.remove('show');
+  document.getElementById('fields-panel').classList.toggle('show', S.fieldsVisible);
+}
+function toggleNotes() {
+  S.notesVisible=!S.notesVisible;
+  S.fieldsVisible=false;
+  document.getElementById('fields-panel').classList.remove('show');
+  document.getElementById('notes-panel').classList.toggle('show', S.notesVisible);
+}
+
+async function toggleFav(diagId) {
+  const d=S.diagrams.find(x=>x.id===diagId);
+  if(!d) return;
+  d.favorite=!d.favorite;
+  await cloudSave('diagrams', diagId, { favorite: d.favorite });
+  renderHome();
+  if(S.currentDiag?.id===diagId) renderViewer();
+  if(document.getElementById('diagrams-screen').classList.contains('active')) renderDiagrams();
+  showToast(d.favorite?'أضيف للمفضلة':'أُزيل من المفضلة');
+}
+
+async function saveNotes() {
+  if(!S.currentDiag) return;
+  const notes=document.getElementById('notes-textarea').value;
+  S.currentDiag.notes=notes;
+  await cloudSave('diagrams', S.currentDiag.id, { notes });
+  showToast('تم حفظ الملاحظات');
+  document.getElementById('notes-panel').classList.remove('show');
+  S.notesVisible=false;
+}
+
+function shareImage() {
+  const d=S.currentDiag; if(!d) return;
+  const url=(d.images||[])[S.currentImgIdx];
+  if(navigator.share) navigator.share({ title:d.name, text:`مخطط: ${d.name}`, url: url||location.href });
+  else if(url) { navigator.clipboard?.writeText(url); showToast('تم نسخ رابط الصورة'); }
+  else showToast('لا توجد صورة');
+}
+
+async function deleteDiagram() {
+  if(!S.currentDiag) return;
+  showConfirm('حذف المخطط', `حذف "${S.currentDiag.name}"؟`, async () => {
+    const id=S.currentDiag.id;
+    S.diagrams=S.diagrams.filter(d=>d.id!==id);
+    await cloudDelete('diagrams', id);
+    goBack(); renderHome();
+    showToast('تم الحذف');
+  });
+}
+
+// Touch viewer
+function initViewerTouch() {
+  const cont=document.getElementById('viewer-img-container');
+  let startX=0, startDist=0, isDragging=false;
+  cont.ontouchstart=e=>{
+    if(e.touches.length===2){ startDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); }
+    else { startX=e.touches[0].clientX; isDragging=true; }
+  };
+  cont.ontouchmove=e=>{
+    if(e.touches.length===2&&startDist){ e.preventDefault();
+      const dist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+      S.currentScale=Math.max(.5,Math.min(5,S.currentScale*(dist/startDist)));
+      startDist=dist; applyZoom();
+    }
+  };
+  cont.ontouchend=e=>{
+    if(e.changedTouches.length===1&&isDragging&&S.currentScale<=1){
+      const dx=e.changedTouches[0].clientX-startX;
+      const imgs=S.currentDiag?.images||[];
+      if(Math.abs(dx)>60&&imgs.length>1){
+        if(dx<0&&S.currentImgIdx<imgs.length-1) goToImg(S.currentImgIdx+1);
+        else if(dx>0&&S.currentImgIdx>0) goToImg(S.currentImgIdx-1);
+      }
+    }
+    isDragging=false; startDist=0;
+  };
+}
+
+// ══════════════════════════════════════════════════════════
+// SEARCH
+// ══════════════════════════════════════════════════════════
+function doSearch(q) {
+  const res=document.getElementById('search-results');
+  if(!q.trim()){ res.innerHTML='<div class="empty-state"><svg viewBox="0 0 48 48"><circle cx="20" cy="20" r="14"/><line x1="31" y1="31" x2="43" y2="43"/></svg><p>اكتب للبحث</p></div>'; return; }
+  const terms=q.toLowerCase();
+  const found=S.diagrams.filter(d =>
+    d.name?.toLowerCase().includes(terms)||
+    d.type?.toLowerCase().includes(terms)||
+    d.model?.toLowerCase().includes(terms)||
+    (d.notes||'').toLowerCase().includes(terms)||
+    S.brands.find(b=>b.id===d.brandId)?.name?.toLowerCase().includes(terms)||
+    S.categories.find(c=>c.id===d.categoryId)?.name?.toLowerCase().includes(terms)||
+    Object.values(d.customFields||{}).some(v=>String(v).toLowerCase().includes(terms))
+  );
+  if(!found.length){ res.innerHTML='<div class="empty-state"><p>لا توجد نتائج لـ "'+q+'"</p></div>'; return; }
+  res.innerHTML=`<div style="font-size:11px;color:var(--text3);margin-bottom:10px">${found.length} نتيجة</div><div class="diag-grid">${found.map(d=>diagCard(d)).join('')}</div>`;
+}
+
+// ══════════════════════════════════════════════════════════
+// FAVORITES
+// ══════════════════════════════════════════════════════════
+function renderFavs() {
+  const grid=document.getElementById('favs-grid');
+  const favs=S.diagrams.filter(d=>d.favorite);
+  if(!favs.length){ grid.innerHTML='<div class="empty-state" style="grid-column:1/-1"><svg viewBox="0 0 48 48"><path d="M24 8l3.5 10.5H38l-8.5 6.5 3 10L24 29l-8.5 6 3-10L10 18.5h10.5z"/></svg><p>لا توجد مفضلات بعد<br>اضغط ★ على أي مخطط</p></div>'; return; }
+  grid.innerHTML=favs.map(d=>diagCard(d)).join('');
+}
+
+// ══════════════════════════════════════════════════════════
+// SETTINGS SCREEN
+// ══════════════════════════════════════════════════════════
+function renderSettingsScreen() {
+  const body = document.getElementById('settings-body');
+  if(!body) return;
+  body.innerHTML = `
+    <!-- Drive Section -->
+    <div class="drive-card">
+      <div class="drive-card-header">
+        <div class="drive-card-icon"><svg viewBox="0 0 24 24"><path d="M4 17l4-7h8l4 7"/><path d="M8 10L12 3l4 7"/><path d="M3.5 17h17"/></svg></div>
+        <div><div class="drive-card-title">Google Drive</div><div class="drive-card-sub">تخزين الصور على السحابة</div></div>
+      </div>
+      <div class="drive-status"><div class="drive-dot${S.driveConnected?' connected':''}"></div>${S.driveConnected?'متصل — الصور تُحفظ في Drive':'غير متصل — الصور محلية فقط'}</div>
+      <button class="drive-connect-btn${S.driveConnected?' connected':''}" onclick="${S.driveConnected?'showToast(\'Drive مربوط بالفعل\')':'signInWithGoogle()'}">
+        ${S.driveConnected?'Drive ✓ متصل':'ربط Google Drive'}
+      </button>
+    </div>
+
+    <!-- Categories Management -->
+    <div class="mgmt-section">
+      <div class="mgmt-sec-title">الأقسام <span style="font-size:12px;color:var(--accent);cursor:pointer" onclick="showAddCategory()">+ إضافة</span></div>
+      ${S.categories.map(cat => `
+        <div class="mgmt-item">
+          <span style="font-size:18px">${cat.icon||'📁'}</span>
+          <div style="flex:1;min-width:0">
+            <div class="mgmt-name">${cat.name}</div>
+            <div class="mgmt-sub">${S.brands.filter(b=>b.categoryId===cat.id).length} ماركة · ${S.diagrams.filter(d=>d.categoryId===cat.id).length} مخطط · ${cat.fields?.length||0} خانات مخصصة</div>
+          </div>
+          <div class="mgmt-btns">
+            <div class="mgmt-btn edit" onclick="editCategory('${cat.id}')"><svg viewBox="0 0 13 13"><path d="M1 9L3.5 11.5L11 4l-2.5-2.5z"/></svg></div>
+            <div class="mgmt-btn del"  onclick="deleteCategory('${cat.id}')"><svg viewBox="0 0 13 13"><path d="M2 4h9M5 4V2.5h3V4M5.5 6v4M7.5 6v4M3 4l.5 7h6l.5-7"/></svg></div>
+          </div>
+        </div>`).join('')}
+    </div>
+
+    <!-- Types Management -->
+    <div class="mgmt-section">
+      <div class="mgmt-sec-title">أنواع المخططات <span style="font-size:12px;color:var(--accent);cursor:pointer" onclick="openTypeModal()">+ تعديل</span></div>
+      <div class="type-chip-wrap">
+        ${S.diagTypes.map(t => `<div class="type-chip">${t}</div>`).join('')}
+      </div>
+    </div>
+
+    <!-- Brands Management -->
+    <div class="mgmt-section">
+      <div class="mgmt-sec-title">كل الماركات <span style="font-size:12px;color:var(--accent);cursor:pointer" onclick="showAddBrandGlobal()">+ إضافة</span></div>
+      ${S.brands.map(b => `
+        <div class="mgmt-item">
+          <div class="mgmt-dot" style="background:${b.color||'#2d7dd2'}"></div>
+          <div style="flex:1;min-width:0">
+            <div class="mgmt-name">${b.name}</div>
+            <div class="mgmt-sub">${S.categories.find(c=>c.id===b.categoryId)?.name||''} · ${S.diagrams.filter(d=>d.brandId===b.id).length} مخطط</div>
+          </div>
+          <div class="mgmt-btns">
+            <div class="mgmt-btn edit" onclick="editBrand('${b.id}')"><svg viewBox="0 0 13 13"><path d="M1 9L3.5 11.5L11 4l-2.5-2.5z"/></svg></div>
+            <div class="mgmt-btn del"  onclick="confirmDeleteBrand('${b.id}')"><svg viewBox="0 0 13 13"><path d="M2 4h9M5 4V2.5h3V4M5.5 6v4M7.5 6v4M3 4l.5 7h6l.5-7"/></svg></div>
+          </div>
+        </div>`).join('')}
+    </div>
+
+    <!-- Account -->
+    <div class="settings-group" style="margin-top:8px">
+      <div class="settings-item" onclick="manualSync()">
+        <div class="settings-item-icon" style="background:rgba(45,125,210,.15)"><svg viewBox="0 0 22 22" stroke="var(--accent)"><path d="M20 8.5A9 9 0 0 0 3.5 14M2 15.5A9 9 0 0 0 18.5 10"/><polyline points="20,4 20,9 15,9"/><polyline points="2,20 2,15 7,15"/></svg></div>
+        <div class="settings-item-text"><div class="settings-item-label">مزامنة يدوية</div><div class="settings-item-sub">رفع التغييرات المحلية للسحابة</div></div>
+        <div class="settings-item-arr"><svg viewBox="0 0 12 12"><path d="M4 2l4 4-4 4"/></svg></div>
+      </div>
+      <div class="settings-item" onclick="exportData()">
+        <div class="settings-item-icon" style="background:rgba(26,138,90,.15)"><svg viewBox="0 0 22 22" stroke="var(--green)"><path d="M4 12v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/><polyline points="15,7 11,3 7,7"/><line x1="11" y1="3" x2="11" y2="14"/></svg></div>
+        <div class="settings-item-text"><div class="settings-item-label">تصدير البيانات</div><div class="settings-item-sub">تحميل نسخة احتياطية JSON</div></div>
+        <div class="settings-item-arr"><svg viewBox="0 0 12 12"><path d="M4 2l4 4-4 4"/></svg></div>
+      </div>
+      <div class="settings-item" onclick="importData()">
+        <div class="settings-item-icon" style="background:rgba(196,122,26,.15)"><svg viewBox="0 0 22 22" stroke="var(--amber)"><path d="M4 12v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/><polyline points="7,15 11,19 15,15"/><line x1="11" y1="3" x2="11" y2="19"/></svg></div>
+        <div class="settings-item-text"><div class="settings-item-label">استيراد بيانات</div><div class="settings-item-sub">تحميل نسخة احتياطية سابقة</div></div>
+        <div class="settings-item-arr"><svg viewBox="0 0 12 12"><path d="M4 2l4 4-4 4"/></svg></div>
+      </div>
+      ${S.user ? `<div class="settings-item" onclick="signOutUser()">
+        <div class="settings-item-icon" style="background:rgba(192,57,43,.15)"><svg viewBox="0 0 22 22" stroke="var(--red)"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></div>
+        <div class="settings-item-text"><div class="settings-item-label">تسجيل الخروج</div><div class="settings-item-sub">${S.user.displayName||S.user.email||''}</div></div>
+      </div>` : ''}
+    </div>
+    <div style="text-align:center;font-size:11px;color:var(--text3);padding:20px 0 10px">Atlas Pro v2.0 — offline-first PWA</div>
+  `;
+}
+
+function showAddBrandGlobal() {
+  // Open brand modal without a current cat preset
+  openBrandModal(null);
+}
+
+// ══════════════════════════════════════════════════════════
+// DIAGRAM TYPES MANAGER
+// ══════════════════════════════════════════════════════════
+function openTypeModal() {
+  renderTypeChips();
+  document.getElementById('type-modal').classList.add('show');
+}
+function closeTypeModal() {
+  document.getElementById('type-modal').classList.remove('show');
+  saveLocal();
+  buildFilterChips();
+  // Persist types to cloud
+  if(fb().ready && S.isOnline) {
+    fb().setDoc(fb().doc(fb().db, userPath('settings'), 'types'), { list: S.diagTypes }).catch(()=>{});
+  }
+}
+function renderTypeChips() {
+  document.getElementById('type-chip-wrap').innerHTML = S.diagTypes.map((t,i) =>
+    `<div class="type-chip">${t}
+      <div class="type-chip-del" onclick="removeDiagType(${i})"><svg viewBox="0 0 10 10"><line x1="2" y1="2" x2="8" y2="8"/><line x1="8" y1="2" x2="2" y2="8"/></svg></div>
+    </div>`
+  ).join('');
+}
+function addDiagType() {
+  const val = document.getElementById('type-new-input').value.trim();
+  if(!val) return;
+  if(!S.diagTypes.includes(val)) { S.diagTypes.push(val); renderTypeChips(); }
+  document.getElementById('type-new-input').value='';
+}
+function removeDiagType(i) {
+  S.diagTypes.splice(i,1);
+  renderTypeChips();
+}
+
+// ══════════════════════════════════════════════════════════
+// EXPORT / IMPORT
+// ══════════════════════════════════════════════════════════
+function exportData() {
+  const data = { categories: S.categories, brands: S.brands, diagrams: S.diagrams, diagTypes: S.diagTypes, exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data,null,2)], { type:'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href=url; a.download=`atlas-backup-${Date.now()}.json`; a.click();
+  URL.revokeObjectURL(url);
+  showToast('تم التصدير');
+}
+function importData() {
+  const input = document.createElement('input');
+  input.type='file'; input.accept='.json';
+  input.onchange = async e => {
+    const file = e.target.files[0]; if(!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      showConfirm('استيراد البيانات', 'هل تريد استيراد هذه البيانات؟\nسيتم دمجها مع البيانات الحالية.', async () => {
+        if(data.categories?.length) S.categories = data.categories;
+        if(data.brands?.length)     S.brands     = data.brands;
+        if(data.diagrams?.length)   S.diagrams   = data.diagrams;
+        if(data.diagTypes?.length)  S.diagTypes  = data.diagTypes;
+        saveLocal();
+        renderAll();
+        showToast('تم الاستيراد بنجاح');
+      }, 'استيراد', true);
+    } catch(e) { showToast('خطأ في ملف الاستيراد'); }
+  };
+  input.click();
+}
+
+// ══════════════════════════════════════════════════════════
+// COLOR ROW BUILDER
+// ══════════════════════════════════════════════════════════
+function buildColorRow(containerId, selectedColor) {
+  document.getElementById(containerId).innerHTML = COLORS.map(c =>
+    `<div class="color-dot${c===selectedColor?' selected':''}" data-color="${c}" style="background:${c}" onclick="selectColor(this,'${containerId}')"></div>`
+  ).join('');
+}
+function selectColor(el, containerId) {
+  document.querySelectorAll(`#${containerId} .color-dot`).forEach(d => d.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+// ══════════════════════════════════════════════════════════
+// CONFIRM / TOAST
+// ══════════════════════════════════════════════════════════
+let _confirmCb=null;
+function showConfirm(title, msg, cb, okLabel='حذف', isAccent=false) {
+  document.getElementById('confirm-title').textContent=title;
+  document.getElementById('confirm-msg').textContent=msg;
+  const ok=document.getElementById('confirm-ok-btn');
+  ok.textContent=okLabel;
+  ok.className='ok'+(isAccent?' accent':'');
+  _confirmCb=cb;
+  ok.onclick=()=>{ closeConfirm(); cb(); };
+  document.getElementById('confirm-overlay').classList.add('show');
+}
+function closeConfirm() { document.getElementById('confirm-overlay').classList.remove('show'); }
+
+let _toastTimer;
+function showToast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(()=>t.classList.remove('show'), 2800);
+}
+
+// ══════════════════════════════════════════════════════════
+// TIME
+// ══════════════════════════════════════════════════════════
+function timeAgo(ts) {
+  if(!ts) return '';
+  const diff=Date.now()-ts;
+  if(diff<60000) return 'الآن';
+  if(diff<3600000) return `${Math.floor(diff/60000)} د`;
+  if(diff<86400000) return 'اليوم';
+  if(diff<172800000) return 'أمس';
+  if(diff<604800000) return `${Math.floor(diff/86400000)} أيام`;
+  return new Date(ts).toLocaleDateString('ar-IQ');
+}
+
+// ══════════════════════════════════════════════════════════
+// HARDWARE BACK / SW
+// ══════════════════════════════════════════════════════════
+window.addEventListener('popstate', () => { if(S.screenStack.length) goBack(); });
+history.pushState(null,'',location.href);
+
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+updateOfflineBadge();
+</script>
+</body>
+</html>
